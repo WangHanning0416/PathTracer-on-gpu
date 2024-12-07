@@ -46,6 +46,21 @@ export class DenoiseMaterial extends MaterialBase {
 			`,
 
 			fragmentShader: /* glsl */`
+
+				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+				//  Copyright (c) 2018-2019 Michele Morrone
+				//  All rights reserved.
+				//
+				//  https://michelemorrone.eu - https://BrutPitt.com
+				//
+				//  me@michelemorrone.eu - brutpitt@gmail.com
+				//  twitter: @BrutPitt - github: BrutPitt
+				//
+				//  https://github.com/BrutPitt/glslSmartDeNoise/
+				//
+				//  This software is distributed under the terms of the BSD 2-Clause license
+				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 				uniform sampler2D map;
 
 				uniform float sigma;

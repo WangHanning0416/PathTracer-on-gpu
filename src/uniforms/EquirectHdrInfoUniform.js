@@ -7,55 +7,99 @@ function binarySearchFindClosestIndexOf( array, targetValue, offset = 0, count =
 	let upper = offset + count - 1;
 
 	while ( lower < upper ) {
+
+		// calculate the midpoint for this iteration using a bitwise shift right operator to save 1 floating point multiplication
+		// and 1 truncation from the double tilde operator to improve performance
+		// this results in much better performance over using standard "~ ~ ( (lower + upper) ) / 2" to calculate the midpoint
 		const mid = ( lower + upper ) >> 1;
+
+		// check if the middle array value is above or below the target and shift
+		// which half of the array we're looking at
 		if ( array[ mid ] < targetValue ) {
+
 			lower = mid + 1;
+
 		} else {
+
 			upper = mid;
+
 		}
+
 	}
+
 	return lower - offset;
 
 }
 
 function colorToLuminance( r, g, b ) {
+
+	// https://en.wikipedia.org/wiki/Relative_luminance
 	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
 }
 
+// ensures the data is all floating point values and flipY is false
 function preprocessEnvMap( envMap, targetType = HalfFloatType ) {
+
 	const map = envMap.clone();
 	map.source = new Source( { ...map.image } );
 	const { width, height, data } = map.image;
 
+	// TODO: is there a simple way to avoid cloning and adjusting the env map data here?
+	// convert the data from half float uint 16 arrays to float arrays for cdf computation
 	let newData = data;
 	if ( map.type !== targetType ) {
+
 		if ( targetType === HalfFloatType ) {
+
 			newData = new Uint16Array( data.length );
+
 		} else {
+
 			newData = new Float32Array( data.length );
+
 		}
+
 		let maxIntValue;
 		if ( data instanceof Int8Array || data instanceof Int16Array || data instanceof Int32Array ) {
+
 			maxIntValue = 2 ** ( 8 * data.BYTES_PER_ELEMENT - 1 ) - 1;
+
 		} else {
+
 			maxIntValue = 2 ** ( 8 * data.BYTES_PER_ELEMENT ) - 1;
+
 		}
+
 		for ( let i = 0, l = data.length; i < l; i ++ ) {
+
 			let v = data[ i ];
 			if ( map.type === HalfFloatType ) {
+
 				v = DataUtils.fromHalfFloat( data[ i ] );
+
 			}
+
 			if ( map.type !== FloatType && map.type !== HalfFloatType ) {
+
 				v /= maxIntValue;
+
 			}
+
 			if ( targetType === HalfFloatType ) {
+
 				newData[ i ] = DataUtils.toHalfFloat( v );
+
 			}
+
 		}
+
 		map.image.data = newData;
 		map.type = targetType;
+
 	}
 
+	// remove any y flipping for cdf computation
 	if ( map.flipY ) {
 
 		const ogData = newData;
@@ -143,11 +187,19 @@ export class EquirectHdrInfoUniform {
 	}
 
 	updateFrom( hdr ) {
+
+		// https://github.com/knightcrawler25/GLSL-PathTracer/blob/3c6fd9b6b3da47cd50c527eeb45845eef06c55c3/src/loaders/hdrloader.cpp
+		// https://pbr-book.org/3ed-2018/Light_Transport_I_Surface_Reflection/Sampling_Light_Sources#InfiniteAreaLights
 		const map = preprocessEnvMap( hdr );
 		map.wrapS = RepeatWrapping;
 		map.wrapT = ClampToEdgeWrapping;
 
 		const { width, height, data } = map.image;
+
+		// "conditional" = "pixel relative to row pixels sum"
+		// "marginal" = "row relative to row sum"
+
+		// track the importance of any given pixel in the image by tracking its weight relative to other pixels in the image
 		const pdfConditional = new Float32Array( width * height );
 		const cdfConditional = new Float32Array( width * height );
 
@@ -165,6 +217,10 @@ export class EquirectHdrInfoUniform {
 				const r = DataUtils.fromHalfFloat( data[ 4 * i + 0 ] );
 				const g = DataUtils.fromHalfFloat( data[ 4 * i + 1 ] );
 				const b = DataUtils.fromHalfFloat( data[ 4 * i + 2 ] );
+
+				// the probability of the pixel being selected in this row is the
+				// scale of the luminance relative to the rest of the pixels.
+				// TODO: this should also account for the solid angle of the pixel when sampling
 				const weight = colorToLuminance( r, g, b );
 				cumulativeRowWeight += weight;
 				totalSumValue += weight;
@@ -174,8 +230,10 @@ export class EquirectHdrInfoUniform {
 
 			}
 
+			// can happen if the row is all black
 			if ( cumulativeRowWeight !== 0 ) {
 
+				// scale the pdf and cdf to [0.0, 1.0]
 				for ( let i = y * width, l = y * width + width; i < l; i ++ ) {
 
 					pdfConditional[ i ] /= cumulativeRowWeight;
@@ -187,13 +245,16 @@ export class EquirectHdrInfoUniform {
 
 			cumulativeWeightMarginal += cumulativeRowWeight;
 
+			// compute the marginal pdf and cdf along the height of the map.
 			pdfMarginal[ y ] = cumulativeRowWeight;
 			cdfMarginal[ y ] = cumulativeWeightMarginal;
 
 		}
 
+		// can happen if the texture is all black
 		if ( cumulativeWeightMarginal !== 0 ) {
 
+			// scale the marginal pdf and cdf to [0.0, 1.0]
 			for ( let i = 0, l = pdfMarginal.length; i < l; i ++ ) {
 
 				pdfMarginal[ i ] /= cumulativeWeightMarginal;
@@ -203,9 +264,14 @@ export class EquirectHdrInfoUniform {
 
 		}
 
+		// compute a sorted index of distributions and the probabilities along them for both
+		// the marginal and conditional data. These will be used to sample with a random number
+		// to retrieve a uv value to sample in the environment map.
+		// These values continually increase so it's okay to interpolate between them.
 		const marginalDataArray = new Uint16Array( height );
 		const conditionalDataArray = new Uint16Array( width * height );
 
+		// we add a half texel offset so we're sampling the center of the pixel
 		for ( let i = 0; i < height; i ++ ) {
 
 			const dist = ( i + 1 ) / height;

@@ -1,0 +1,15 @@
+{
+  "name": "test",
+  "version": "1.0.0",
+  "main": "test.js",
+  "scripts": {
+    "start": "parcel serve ./*.html --dist-dir ./dev-bundle/ --no-cache --no-hmr",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "parcel": "^2.13.2"
+  }
+}

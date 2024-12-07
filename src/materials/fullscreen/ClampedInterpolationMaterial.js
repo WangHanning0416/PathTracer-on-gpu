@@ -1,35 +1,55 @@
 import { ShaderMaterial } from 'three';
+
+// Material that tone maps a texture before performing interpolation to prevent
+// unexpected high values during texture stretching interpolation.
+// Emulates browser image stretching
 export class ClampedInterpolationMaterial extends ShaderMaterial {
+
 	get map() {
+
 		return this.uniforms.map.value;
+
 	}
 
 	set map( v ) {
+
 		this.uniforms.map.value = v;
+
 	}
 
 	get opacity() {
+
 		return this.uniforms.opacity.value;
+
 	}
 
 	set opacity( v ) {
+
 		if ( this.uniforms ) {
+
 			this.uniforms.opacity.value = v;
+
 		}
+
 	}
 
 	constructor( params ) {
+
 		super( {
 			uniforms: {
+
 				map: { value: null },
 				opacity: { value: 1 },
+
 			},
 
 			vertexShader: /* glsl */`
 				varying vec2 vUv;
 				void main() {
+
 					vUv = uv;
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
 				}
 			`,
 
@@ -37,15 +57,23 @@ export class ClampedInterpolationMaterial extends ShaderMaterial {
 				uniform sampler2D map;
 				uniform float opacity;
 				varying vec2 vUv;
+
 				vec4 clampedTexelFatch( sampler2D map, ivec2 px, int lod ) {
+
 					vec4 res = texelFetch( map, ivec2( px.x, px.y ), 0 );
+
 					#if defined( TONE_MAPPING )
+
 					res.xyz = toneMapping( res.xyz );
+
 					#endif
+
 			  		return linearToOutputTexel( res );
+
 				}
 
 				void main() {
+
 					vec2 size = vec2( textureSize( map, 0 ) );
 					vec2 pxUv = vUv * size;
 					vec2 pxCurr = floor( pxUv );
@@ -72,6 +100,7 @@ export class ClampedInterpolationMaterial extends ShaderMaterial {
 					gl_FragColor = mix( p1, p2, alpha.y );
 					gl_FragColor.a *= opacity;
 					#include <premultiplied_alpha_fragment>
+
 				}
 			`
 		} );

@@ -735,7 +735,6 @@ class PathTracingRenderer {
 }
 
 },{"three":"ktPTu","three/examples/jsm/postprocessing/Pass.js":"i2IfB","../materials/fullscreen/BlendMaterial.js":"ecXtc","../utils/SobolNumberMapGenerator.js":"bNCSm","../materials/pathtracing/PhysicalPathTracingMaterial.js":"2zJa6","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"ecXtc":[function(require,module,exports,__globalThis) {
-//两种纹理的混合 
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "BlendMaterial", ()=>BlendMaterial);
@@ -757,31 +756,44 @@ class BlendMaterial extends (0, _materialBaseJs.MaterialBase) {
                 }
             },
             vertexShader: /* glsl */ `
-                varying vec2 vUv;
+
+				varying vec2 vUv;
+
 				void main() {
+
 					vUv = uv;
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-            }`,
-            fragmentShader: /*glsl */ `
-                uniform float opacity;
+
+				}`,
+            fragmentShader: /* glsl */ `
+
+				uniform float opacity;
+
 				uniform sampler2D target1;
 				uniform sampler2D target2;
+
 				varying vec2 vUv;
-                void main(){
-                    vec4 color1 = texture2D(target1,vUv);
-                    vec4 color2 = texture2D(target2.vUv);
-                    float invOpacity = 1.0 - opacity;  // \u{8BA1}\u{7B97}\u{900F}\u{660E}\u{5EA6}\u{7684}\u{53CD}\u{8F6C}\u{503C}
-                    float totalAlpha = color1.a * invOpacity + color2.a * opacity;  // \u{6DF7}\u{5408}\u{540E}\u{7684}\u{603B}\u{900F}\u{660E}\u{5EA6}
-                    if (color1.a != 0.0 || color2.a != 0.0) { 
-                        gl_FragColor.rgb = color1.rgb * (invOpacity * color1.a / totalAlpha) + 
-                                           color2.rgb * (opacity * color2.a / totalAlpha);
-                        gl_FragColor.a = totalAlpha;
-                    } 
-                    else {
-                        gl_FragColor = vec4(0.0);
-                    }    
-                }
-            `
+
+				void main() {
+
+					vec4 color1 = texture2D( target1, vUv );
+					vec4 color2 = texture2D( target2, vUv );
+
+					float invOpacity = 1.0 - opacity;
+					float totalAlpha = color1.a * invOpacity + color2.a * opacity;
+
+					if ( color1.a != 0.0 || color2.a != 0.0 ) {
+
+						gl_FragColor.rgb = color1.rgb * ( invOpacity * color1.a / totalAlpha ) + color2.rgb * ( opacity * color2.a / totalAlpha );
+						gl_FragColor.a = totalAlpha;
+
+					} else {
+
+						gl_FragColor = vec4( 0.0 );
+
+					}
+
+				}`
         });
         this.setValues(parameters);
     }
@@ -1505,27 +1517,25 @@ class PhysicalCameraUniform {
 }
 
 },{"../objects/PhysicalCamera.js":"gtiba","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"gtiba":[function(require,module,exports,__globalThis) {
-//提供一些真实物理相机的参数
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "PhysicalCamera", ()=>PhysicalCamera);
 var _three = require("three");
 class PhysicalCamera extends (0, _three.PerspectiveCamera) {
-    constructor(...args){
-        super(...args);
-        this.fStop = 1.4; //光圈 小的 fStop（如 1.4）对应更大的光圈，景深更浅。
-        this.apertureBlades = 0; //光圈的叶片数量，决定了虚化光斑（bokeh）的形状，例如六边形、八边形等。如果为 0，则表示一个完美的圆形光斑。
-        this.apertureRotation = 0; //光圈的旋转角度，以弧度为单位。用于改变非圆形光斑的方向
-        this.focusDistance = 25; //焦距 
-        this.anamorphicRatio = 1; //变形比率，用于模拟宽银幕电影摄像机的纵横比压缩效果。1 表示没有变形，而其他值表示不同的压缩程度。
-    }
     set bokehSize(size) {
         this.fStop = this.getFocalLength() / size;
     }
     get bokehSize() {
         return this.getFocalLength() / this.fStop;
     }
-    //重载父类的copy函数，以便添加新的属性
+    constructor(...args){
+        super(...args);
+        this.fStop = 1.4;
+        this.apertureBlades = 0;
+        this.apertureRotation = 0;
+        this.focusDistance = 25;
+        this.anamorphicRatio = 1;
+    }
     copy(source, recursive) {
         super.copy(source, recursive);
         this.fStop = source.fStop;
@@ -1547,21 +1557,30 @@ function binarySearchFindClosestIndexOf(array, targetValue, offset = 0, count = 
     let lower = offset;
     let upper = offset + count - 1;
     while(lower < upper){
+        // calculate the midpoint for this iteration using a bitwise shift right operator to save 1 floating point multiplication
+        // and 1 truncation from the double tilde operator to improve performance
+        // this results in much better performance over using standard "~ ~ ( (lower + upper) ) / 2" to calculate the midpoint
         const mid = lower + upper >> 1;
+        // check if the middle array value is above or below the target and shift
+        // which half of the array we're looking at
         if (array[mid] < targetValue) lower = mid + 1;
         else upper = mid;
     }
     return lower - offset;
 }
 function colorToLuminance(r, g, b) {
+    // https://en.wikipedia.org/wiki/Relative_luminance
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
+// ensures the data is all floating point values and flipY is false
 function preprocessEnvMap(envMap, targetType = (0, _three.HalfFloatType)) {
     const map = envMap.clone();
     map.source = new (0, _three.Source)({
         ...map.image
     });
     const { width, height, data } = map.image;
+    // TODO: is there a simple way to avoid cloning and adjusting the env map data here?
+    // convert the data from half float uint 16 arrays to float arrays for cdf computation
     let newData = data;
     if (map.type !== targetType) {
         if (targetType === (0, _three.HalfFloatType)) newData = new Uint16Array(data.length);
@@ -1578,6 +1597,7 @@ function preprocessEnvMap(envMap, targetType = (0, _three.HalfFloatType)) {
         map.image.data = newData;
         map.type = targetType;
     }
+    // remove any y flipping for cdf computation
     if (map.flipY) {
         const ogData = newData;
         newData = newData.slice();
@@ -1654,10 +1674,15 @@ class EquirectHdrInfoUniform {
         this.map.dispose();
     }
     updateFrom(hdr) {
+        // https://github.com/knightcrawler25/GLSL-PathTracer/blob/3c6fd9b6b3da47cd50c527eeb45845eef06c55c3/src/loaders/hdrloader.cpp
+        // https://pbr-book.org/3ed-2018/Light_Transport_I_Surface_Reflection/Sampling_Light_Sources#InfiniteAreaLights
         const map = preprocessEnvMap(hdr);
         map.wrapS = (0, _three.RepeatWrapping);
         map.wrapT = (0, _three.ClampToEdgeWrapping);
         const { width, height, data } = map.image;
+        // "conditional" = "pixel relative to row pixels sum"
+        // "marginal" = "row relative to row sum"
+        // track the importance of any given pixel in the image by tracking its weight relative to other pixels in the image
         const pdfConditional = new Float32Array(width * height);
         const cdfConditional = new Float32Array(width * height);
         const pdfMarginal = new Float32Array(height);
@@ -1671,26 +1696,39 @@ class EquirectHdrInfoUniform {
                 const r = (0, _three.DataUtils).fromHalfFloat(data[4 * i + 0]);
                 const g = (0, _three.DataUtils).fromHalfFloat(data[4 * i + 1]);
                 const b = (0, _three.DataUtils).fromHalfFloat(data[4 * i + 2]);
+                // the probability of the pixel being selected in this row is the
+                // scale of the luminance relative to the rest of the pixels.
+                // TODO: this should also account for the solid angle of the pixel when sampling
                 const weight = colorToLuminance(r, g, b);
                 cumulativeRowWeight += weight;
                 totalSumValue += weight;
                 pdfConditional[i] = weight;
                 cdfConditional[i] = cumulativeRowWeight;
             }
-            if (cumulativeRowWeight !== 0) for(let i = y * width, l = y * width + width; i < l; i++){
+            // can happen if the row is all black
+            if (cumulativeRowWeight !== 0) // scale the pdf and cdf to [0.0, 1.0]
+            for(let i = y * width, l = y * width + width; i < l; i++){
                 pdfConditional[i] /= cumulativeRowWeight;
                 cdfConditional[i] /= cumulativeRowWeight;
             }
             cumulativeWeightMarginal += cumulativeRowWeight;
+            // compute the marginal pdf and cdf along the height of the map.
             pdfMarginal[y] = cumulativeRowWeight;
             cdfMarginal[y] = cumulativeWeightMarginal;
         }
-        if (cumulativeWeightMarginal !== 0) for(let i = 0, l = pdfMarginal.length; i < l; i++){
+        // can happen if the texture is all black
+        if (cumulativeWeightMarginal !== 0) // scale the marginal pdf and cdf to [0.0, 1.0]
+        for(let i = 0, l = pdfMarginal.length; i < l; i++){
             pdfMarginal[i] /= cumulativeWeightMarginal;
             cdfMarginal[i] /= cumulativeWeightMarginal;
         }
+        // compute a sorted index of distributions and the probabilities along them for both
+        // the marginal and conditional data. These will be used to sample with a random number
+        // to retrieve a uv value to sample in the environment map.
+        // These values continually increase so it's okay to interpolate between them.
         const marginalDataArray = new Uint16Array(height);
         const conditionalDataArray = new Uint16Array(width * height);
+        // we add a half texel offset so we're sampling the center of the pixel
         for(let i = 0; i < height; i++){
             const dist = (i + 1) / height;
             const row = binarySearchFindClosestIndexOf(cdfMarginal, dist);
@@ -1893,8 +1931,8 @@ class LightsInfoUniformStruct {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "AttributesTextureArray", ()=>AttributesTextureArray);
-var _floatAttributeTextureArray = require("./FloatAttributeTextureArray");
-class AttributesTextureArray extends (0, _floatAttributeTextureArray.FloatAttributeTextureArray) {
+var _floatAttributeTextureArrayJs = require("./FloatAttributeTextureArray.js");
+class AttributesTextureArray extends (0, _floatAttributeTextureArrayJs.FloatAttributeTextureArray) {
     updateNormalAttribute(attr) {
         this.updateAttribute(0, attr);
     }
@@ -1917,7 +1955,7 @@ class AttributesTextureArray extends (0, _floatAttributeTextureArray.FloatAttrib
     }
 }
 
-},{"./FloatAttributeTextureArray":"7TZ14","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"7TZ14":[function(require,module,exports,__globalThis) {
+},{"./FloatAttributeTextureArray.js":"7TZ14","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"7TZ14":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "FloatAttributeTextureArray", ()=>FloatAttributeTextureArray);
@@ -1925,10 +1963,10 @@ var _three = require("three");
 var _threeMeshBvh = require("three-mesh-bvh");
 function copyArrayToArray(fromArray, fromStride, toArray, toStride, offset) {
     if (fromStride > toStride) throw new Error();
+    // scale non-float values to their normalized range
     const count = fromArray.length / fromStride;
     const bpe = fromArray.constructor.BYTES_PER_ELEMENT * 8;
     let maxValue = 1.0;
-    //归一化处理
     switch(fromArray.constructor){
         case Uint8Array:
         case Uint16Array:
@@ -1956,39 +1994,41 @@ class FloatAttributeTextureArray extends (0, _three.DataArrayTexture) {
         this.internalFormat = 'RGBA32F';
     }
     updateAttribute(index, attr) {
+        // update the texture
         const tex = this._textures[index];
         tex.updateFrom(attr);
-        //检查尺寸是否匹配，不是则报错
+        // ensure compatibility
         const baseImage = tex.image;
         const image = this.image;
         if (baseImage.width !== image.width || baseImage.height !== image.height) throw new Error('FloatAttributeTextureArray: Attribute must be the same dimensions when updating single layer.');
-        //width 和 height 是纹理图像的尺寸。
-        //data 是包含纹理数据的数组（Float32Array，其中存储了纹理的每个像素的 RGBA 值）
+        // update the image
         const { width, height, data } = image;
         const length = width * height * 4;
         const offset = length * index;
-        //对齐，法线向量为3，颜色为4，对齐便于处理
         let itemSize = attr.itemSize;
         if (itemSize === 3) itemSize = 4;
+        // copy the data
         copyArrayToArray(tex.image.data, itemSize, data, 4, offset);
         this.dispose();
         this.needsUpdate = true;
     }
-    setArributes(attrs) {
+    setAttributes(attrs) {
+        // ensure the attribute count
         const itemCount = attrs[0].count;
         const attrsLength = attrs.length;
         for(let i = 0, l = attrsLength; i < l; i++){
             if (attrs[i].count !== itemCount) throw new Error('FloatAttributeTextureArray: All attributes must have the same item count.');
         }
+        // initialize all textures
         const textures = this._textures;
-        //texture初始化，要与attrs的属性数量保持一致
         while(textures.length < attrsLength){
             const tex = new (0, _threeMeshBvh.FloatVertexAttributeTexture)();
             textures.push(tex);
         }
         while(textures.length > attrsLength)textures.pop();
-        //依次更新每一个属性
+        // update all textures
         for(let i = 0, l = attrsLength; i < l; i++)textures[i].updateFrom(attrs[i]);
+        // determine if we need to create a new array
         const baseTexture = textures[0];
         const baseImage = baseTexture.image;
         const image = this.image;
@@ -1998,6 +2038,7 @@ class FloatAttributeTextureArray extends (0, _three.DataArrayTexture) {
             image.depth = attrsLength;
             image.data = new Float32Array(image.width * image.height * image.depth * 4);
         }
+        // copy the other texture data into the data array texture
         const { data, width, height } = image;
         for(let i = 0, l = attrsLength; i < l; i++){
             const tex = textures[i];
@@ -2007,6 +2048,7 @@ class FloatAttributeTextureArray extends (0, _three.DataArrayTexture) {
             if (itemSize === 3) itemSize = 4;
             copyArrayToArray(tex.image.data, itemSize, data, 4, offset);
         }
+        // reset the texture
         this.dispose();
         this.needsUpdate = true;
     }
@@ -2641,47 +2683,51 @@ parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "BlueNoiseTexture", ()=>BlueNoiseTexture);
 var _three = require("three");
 var _blueNoiseGeneratorJs = require("./blueNoise/BlueNoiseGenerator.js");
-//描述的是每个像素点需要几个bit来描述
-function getStride(channels1) {
-    if (channels1 >= 3) return 4;
-    else return channels1;
+function getStride(channels) {
+    if (channels >= 3) return 4;
+    else return channels;
 }
-function getFormat(stride) {
-    if (channels == 1) return 0, _three.RedFormat;
-    else if (channels == 2) return 0, _three.RGFormat;
-    else return 0, _three.RGBAFormat;
+function getFormat(channels) {
+    switch(channels){
+        case 1:
+            return 0, _three.RedFormat;
+        case 2:
+            return 0, _three.RGFormat;
+        default:
+            return 0, _three.RGBAFormat;
+    }
 }
 class BlueNoiseTexture extends (0, _three.DataTexture) {
-    constructor(size = 64, channels1 = 1){
+    constructor(size = 64, channels = 1){
         super(new Float32Array(4), 1, 1, (0, _three.RGBAFormat), (0, _three.FloatType));
-        this.channels = channels1;
-        this.size = size;
         this.minFilter = (0, _three.NearestFilter);
         this.magFilter = (0, _three.NearestFilter);
+        this.size = size;
+        this.channels = channels;
         this.update();
     }
     update() {
-        const channels1 = this.channels;
+        const channels = this.channels;
         const size = this.size;
         const generator = new (0, _blueNoiseGeneratorJs.BlueNoiseGenerator)();
-        generator.channels = channels1;
+        generator.channels = channels;
         generator.size = size;
-        const stride = getStride(channels1);
+        const stride = getStride(channels);
         const format = getFormat(stride);
         if (this.image.width !== size || format !== this.format) {
-            this.image.data = new Float32Array(size ** 2 * stride);
             this.image.width = size;
             this.image.height = size;
+            this.image.data = new Float32Array(size ** 2 * stride);
             this.format = format;
             this.dispose();
         }
         const data = this.image.data;
-        for(let i = 0; i < channels1; i++){
+        for(let i = 0, l = channels; i < l; i++){
             const result = generator.generate();
             const bin = result.data;
             const maxValue = result.maxValue;
-            for(let j = 0; j < bin.length; j++){
-                const value = bin[j] / maxValue; //归一化数据
+            for(let j = 0, l2 = bin.length; j < l2; j++){
+                const value = bin[j] / maxValue;
                 data[j * stride + i] = value;
             }
         }
@@ -3892,9 +3938,6 @@ const trace_scene_function = /* glsl */ `
 `;
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"1CzbI":[function(require,module,exports,__globalThis) {
-//继承自 ProceduralEquirectTexture，它用于生成一个渐变的 equirectangular 纹理
-//这个渐变是沿着球面从上到下的颜色变化（从顶部到底部的渐变）
-//颜色从 topColor 渐变到 bottomColor，并且可以控制渐变的平滑度
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "GradientEquirectTexture", ()=>GradientEquirectTexture);
@@ -3922,7 +3965,6 @@ class GradientEquirectTexture extends (0, _proceduralEquirectTextureJs.Procedura
 }
 
 },{"three":"ktPTu","./ProceduralEquirectTexture.js":"i2WMa","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"i2WMa":[function(require,module,exports,__globalThis) {
-//用于生成等距圆柱纹理
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "ProceduralEquirectTexture", ()=>ProceduralEquirectTexture);
@@ -3967,6 +4009,9 @@ class ProceduralEquirectTexture extends (0, _three.DataTexture) {
 },{"three":"ktPTu","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"l9Mxp":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
+// Material that tone maps a texture before performing interpolation to prevent
+// unexpected high values during texture stretching interpolation.
+// Emulates browser image stretching
 parcelHelpers.export(exports, "ClampedInterpolationMaterial", ()=>ClampedInterpolationMaterial);
 var _three = require("three");
 class ClampedInterpolationMaterial extends (0, _three.ShaderMaterial) {
@@ -3995,23 +4040,33 @@ class ClampedInterpolationMaterial extends (0, _three.ShaderMaterial) {
             vertexShader: /* glsl */ `
 				varying vec2 vUv;
 				void main() {
+
 					vUv = uv;
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
 				}
 			`,
             fragmentShader: /* glsl */ `
 				uniform sampler2D map;
 				uniform float opacity;
 				varying vec2 vUv;
+
 				vec4 clampedTexelFatch( sampler2D map, ivec2 px, int lod ) {
+
 					vec4 res = texelFetch( map, ivec2( px.x, px.y ), 0 );
+
 					#if defined( TONE_MAPPING )
+
 					res.xyz = toneMapping( res.xyz );
+
 					#endif
+
 			  		return linearToOutputTexel( res );
+
 				}
 
 				void main() {
+
 					vec2 size = vec2( textureSize( map, 0 ) );
 					vec2 pxUv = vUv * size;
 					vec2 pxCurr = floor( pxUv );
@@ -4038,6 +4093,7 @@ class ClampedInterpolationMaterial extends (0, _three.ShaderMaterial) {
 					gl_FragColor = mix( p1, p2, alpha.y );
 					gl_FragColor.a *= opacity;
 					#include <premultiplied_alpha_fragment>
+
 				}
 			`
         });
@@ -4153,7 +4209,6 @@ class CubeToEquirectGenerator {
 }
 
 },{"three":"ktPTu","three/examples/jsm/postprocessing/Pass.js":"i2IfB","../shader/common/index.js":"i5W2a","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"drTJS":[function(require,module,exports,__globalThis) {
-//拓展camera类————EquirectCamera
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "EquirectCamera", ()=>EquirectCamera);
@@ -4161,12 +4216,11 @@ var _three = require("three");
 class EquirectCamera extends (0, _three.Camera) {
     constructor(){
         super();
-        this.isEquiricCamera = true;
+        this.isEquirectCamera = true;
     }
 }
 
 },{"three":"ktPTu","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"jWRcx":[function(require,module,exports,__globalThis) {
-//提供与真实场景类似的spotlight
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "PhysicalSpotLight", ()=>PhysicalSpotLight);
@@ -4174,8 +4228,8 @@ var _three = require("three");
 class PhysicalSpotLight extends (0, _three.SpotLight) {
     constructor(...args){
         super(...args);
-        this.iesMap = null; //用于存储 IES 光照分布图（光强分布数据），IES 文件是一种常见的灯光数据格式，用于描述真实灯具的光线分布
-        this.radius = 0; //模拟灯光的半径，可能用于控制聚光灯的柔和边缘或其他效果
+        this.iesMap = null;
+        this.radius = 0;
     }
     copy(source, recursive) {
         super.copy(source, recursive);
@@ -4347,6 +4401,21 @@ class DenoiseMaterial extends (0, _materialBaseJs.MaterialBase) {
 
 			`,
             fragmentShader: /* glsl */ `
+
+				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+				//  Copyright (c) 2018-2019 Michele Morrone
+				//  All rights reserved.
+				//
+				//  https://michelemorrone.eu - https://BrutPitt.com
+				//
+				//  me@michelemorrone.eu - brutpitt@gmail.com
+				//  twitter: @BrutPitt - github: BrutPitt
+				//
+				//  https://github.com/BrutPitt/glslSmartDeNoise/
+				//
+				//  This software is distributed under the terms of the BSD 2-Clause license
+				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 				uniform sampler2D map;
 
 				uniform float sigma;

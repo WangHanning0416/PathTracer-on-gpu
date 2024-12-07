@@ -1,13 +1,17 @@
-import {PhysicalCamera} from "../objects/PhysicalCamera.js";
-export class PhysicalCameraUniform{
-    constructor(){
-        this.bokehSize = 0;
+import { PhysicalCamera } from '../objects/PhysicalCamera.js';
+export class PhysicalCameraUniform {
+
+	constructor() {
+
+		this.bokehSize = 0;
 		this.apertureBlades = 0;
 		this.apertureRotation = 0;
 		this.focusDistance = 10;
 		this.anamorphicRatio = 1;
-    }
-    updateFrom( camera ) {
+
+	}
+
+	updateFrom( camera ) {
 
 		if ( camera instanceof PhysicalCamera ) {
 
@@ -28,4 +32,5 @@ export class PhysicalCameraUniform{
 		}
 
 	}
+
 }
