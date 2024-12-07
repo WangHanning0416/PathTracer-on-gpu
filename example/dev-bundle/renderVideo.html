@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+	<head><script src="/aoRender.cf0bbef5.js"></script><script src="/aoRender.c33e7249.js"></script><script src="/aoRender.afac16e6.js"></script><script src="/aoRender.cb927c52.js"></script><script src="/aoRender.2eeae407.js"></script><script src="/aoRender.075bb519.js"></script><script src="/aoRender.7567985c.js"></script><script src="/areaLight.c4483dbf.js"></script><script src="/areaLight.590b4534.js"></script><script src="/hdr.9ea05143.js"></script>
+		<title>Rendering a Path Traced Video</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+		<style>html, body {
+  background-color: #161616;
+  margin: 0;
+  padding: 0;
+}
+
+canvas, video {
+  aspect-ratio: 4 / 3;
+  max-width: 100%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+video {
+  z-index: 1;
+  max-width: 100%;
+  display: none;
+}
+
+#instructions {
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+  width: 100%;
+  padding: 5px 0;
+  font-family: monospace;
+  position: absolute;
+  top: 0;
+}
+</style>
+
+	</head>
+	<body>
+		<div id="instructions">
+			Rendering and recording multiple path traced frames to an animation.
+			<br>
+			Press "record" to begin rendering and recording a video to a webm.
+		</div>
+		<video loop="" controls=""></video>
+		<script src="/renderVideo.b21bfcd1.js" defer=""></script>
+	</body>
+</html>
