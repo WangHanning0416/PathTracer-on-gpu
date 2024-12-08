@@ -52,31 +52,16 @@ export const get_surface_record_function = /* glsl */`
 			albedo.a *= texture2D( textures, vec3( uvPrime.xy, material.alphaMap ) ).x;
 
 		}
-
-		// possibly skip this sample if it's transparent, alpha test is enabled, or we hit the wrong material side
-		// and it's single sided.
-		// - alpha test is disabled when it === 0
-		// - the material sidedness test is complicated because we want light to pass through the back side but still
-		// be able to see the front side. This boolean checks if the side we hit is the front side on the first ray
-		// and we're rendering the other then we skip it. Do the opposite on subsequent bounces to get incoming light.
 		float alphaTest = material.alphaTest;
 		bool useAlphaTest = alphaTest != 0.0;
 		if (
-			// material sidedness
 			material.side != 0.0 && surfaceHit.side != material.side
-
-			// alpha test
 			|| useAlphaTest && albedo.a < alphaTest
-
-			// opacity
 			|| material.transparent && ! useAlphaTest && albedo.a < rand( 3 )
 		) {
-
 			return SKIP_SURFACE;
-
 		}
 
-		// fetch the interpolated smooth normal
 		vec3 normal = normalize( textureSampleBarycoord(
 			attributesArray,
 			ATTR_NORMAL,
@@ -122,12 +107,7 @@ export const get_surface_record_function = /* glsl */`
 
 		// normal
 		if ( material.flatShading ) {
-
-			// if we're rendering a flat shaded object then use the face normals - the face normal
-			// is provided based on the side the ray hits the mesh so flip it to align with the
-			// interpolated vertex normals.
 			normal = surfaceHit.faceNormal * surfaceHit.side;
-
 		}
 
 		vec3 baseNormal = normal;
@@ -139,9 +119,6 @@ export const get_surface_record_function = /* glsl */`
 				surfaceHit.barycoord,
 				surfaceHit.faceIndices.xyz
 			);
-
-			// some provided tangents can be malformed (0, 0, 0) causing the normal to be degenerate
-			// resulting in NaNs and slow path tracing.
 			if ( length( tangentSample.xyz ) > 0.0 ) {
 
 				vec3 tangent = normalize( tangentSample.xyz );
@@ -188,8 +165,6 @@ export const get_surface_record_function = /* glsl */`
 				surfaceHit.faceIndices.xyz
 			);
 
-			// some provided tangents can be malformed (0, 0, 0) causing the normal to be degenerate
-			// resulting in NaNs and slow path tracing.
 			if ( length( tangentSample.xyz ) > 0.0 ) {
 
 				vec3 tangent = normalize( tangentSample.xyz );
@@ -291,24 +266,12 @@ export const get_surface_record_function = /* glsl */`
 
 		surf.specularColor = specularColor;
 		surf.specularIntensity = specularIntensity;
-
-		// apply perceptual roughness factor from gltf. sheen perceptual roughness is
-		// applied by its brdf function
-		// https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#microfacet-surfaces
 		surf.roughness = roughness * roughness;
 		surf.clearcoatRoughness = clearcoatRoughness * clearcoatRoughness;
 		surf.sheenRoughness = sheenRoughness;
-
-		// frontFace is used to determine transmissive properties and PDF. If no transmission is used
-		// then we can just always assume this is a front face.
 		surf.frontFace = surfaceHit.side == 1.0 || transmission == 0.0;
 		surf.eta = material.thinFilm || surf.frontFace ? 1.0 / material.ior : material.ior;
 		surf.f0 = iorRatioToF0( surf.eta );
-
-		// Compute the filtered roughness value to use during specular reflection computations.
-		// The accumulated roughness value is scaled by a user setting and a "magic value" of 5.0.
-		// If we're exiting something transmissive then scale the factor down significantly so we can retain
-		// sharp internal reflections
 		surf.filteredRoughness = applyFilteredGlossy( surf.roughness, accumulatedRoughness );
 		surf.filteredClearcoatRoughness = applyFilteredGlossy( surf.clearcoatRoughness, accumulatedRoughness );
 

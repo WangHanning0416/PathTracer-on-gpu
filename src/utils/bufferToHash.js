@@ -1,5 +1,3 @@
-// https://www.geeksforgeeks.org/how-to-create-hash-from-string-in-javascript/
-// https://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript
 export function bufferToHash( buffer ) {
 
 	let hash = 0;

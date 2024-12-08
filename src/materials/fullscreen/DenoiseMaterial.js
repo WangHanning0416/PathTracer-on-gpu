@@ -3,144 +3,104 @@ import { MaterialBase } from '../MaterialBase.js';
 
 export class DenoiseMaterial extends MaterialBase {
 
-	constructor( parameters ) {
+    constructor(parameters) {
 
-		super( {
+        super({
+            blending: NoBlending,
+            transparent: false,
+            depthWrite: false,
+            depthTest: false,
 
-			blending: NoBlending,
+            defines: {
+                USE_SLIDER: 0,
+            },
 
-			transparent: false,
+            uniforms: {
+                sigma: { value: 5.0 },
+                threshold: { value: 0.03 },
+                kSigma: { value: 1.0 },
+                map: { value: null },
+                opacity: { value: 1 },
+            },
 
-			depthWrite: false,
+            vertexShader: /* glsl */`
+                varying vec2 vUv;
 
-			depthTest: false,
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
 
-			defines: {
+            fragmentShader: /* glsl */`
+                uniform sampler2D map;
+                uniform float sigma;
+                uniform float threshold;
+                uniform float kSigma;
+                uniform float opacity;
+                varying vec2 vUv;
 
-				USE_SLIDER: 0,
+                #define INV_SQRT_OF_2PI 0.3989422804014327
+                #define INV_PI 0.3183098861837907
 
-			},
+                // 智能去噪函数
+                vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold) {
 
-			uniforms: {
+                    // 计算模糊半径
+                    float radius = round(kSigma * sigma);
+                    float radQ = radius * radius;
 
-				sigma: { value: 5.0 },
-				threshold: { value: 0.03 },
-				kSigma: { value: 1.0 },
+                    // 高斯分布相关常量
+                    float invSigmaQx2 = 0.5 / (sigma * sigma);
+                    float invSigmaQx2PI = INV_PI * invSigmaQx2;
 
-				map: { value: null },
-				opacity: { value: 1 },
+                    // 边缘保持参数
+                    float invThresholdSqx2 = 0.5 / (threshold * threshold);
+                    float invThresholdSqrt2PI = INV_SQRT_OF_2PI / threshold;
 
-			},
+                    vec4 centralPixel = texture2D(tex, uv);  // 当前像素
+                    centralPixel.rgb *= centralPixel.a;  // 使用 alpha 通道调整颜色
 
-			vertexShader: /* glsl */`
+                    float zBuffer = 0.0;
+                    vec4 accumulatedColor = vec4(0.0);
+                    vec2 textureSize = vec2(textureSize(tex, 0));  // 获取纹理大小
 
-				varying vec2 vUv;
+                    // 遍历邻域像素
+                    for (float dx = -radius; dx <= radius; dx++) {
+                        float pt = sqrt(radQ - dx * dx);
+                        for (float dy = -pt; dy <= pt; dy++) {
 
-				void main() {
+                            // 计算高斯权重
+                            float blurFactor = exp(-(dx * dx + dy * dy) * invSigmaQx2) * invSigmaQx2PI;
 
-					vUv = uv;
-					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+                            vec4 neighborPixel = texture2D(tex, uv + vec2(dx, dy) / textureSize);
+                            neighborPixel.rgb *= neighborPixel.a;
 
-				}
+                            // 计算与当前像素的差异并加权
+                            vec4 colorDifference = neighborPixel - centralPixel;
+                            float deltaFactor = exp(-(colorDifference.rgba * colorDifference.rgba) * invThresholdSqx2) * invThresholdSqrt2PI * blurFactor;
 
-			`,
+                            zBuffer += deltaFactor;
+                            accumulatedColor += deltaFactor * neighborPixel;
+                        }
+                    }
 
-			fragmentShader: /* glsl */`
+                    return accumulatedColor / zBuffer;  // 返回去噪后的颜色
+                }
 
-				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-				//  Copyright (c) 2018-2019 Michele Morrone
-				//  All rights reserved.
-				//
-				//  https://michelemorrone.eu - https://BrutPitt.com
-				//
-				//  me@michelemorrone.eu - brutpitt@gmail.com
-				//  twitter: @BrutPitt - github: BrutPitt
-				//
-				//  https://github.com/BrutPitt/glslSmartDeNoise/
-				//
-				//  This software is distributed under the terms of the BSD 2-Clause license
-				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                void main() {
+                    // 调用智能去噪函数
+                    gl_FragColor = smartDeNoise(map, vUv, sigma, kSigma, threshold);
 
-				uniform sampler2D map;
+                    #include <tonemapping_fragment>
+                    #include <colorspace_fragment>
+                    #include <premultiplied_alpha_fragment>
 
-				uniform float sigma;
-				uniform float threshold;
-				uniform float kSigma;
-				uniform float opacity;
+                    gl_FragColor.a *= opacity;  // 应用透明度
+                }
+            `
+        });
 
-				varying vec2 vUv;
-
-				#define INV_SQRT_OF_2PI 0.39894228040143267793994605993439
-				#define INV_PI 0.31830988618379067153776752674503
-
-				// Parameters:
-				//	 sampler2D tex	 - sampler image / texture
-				//	 vec2 uv		   - actual fragment coord
-				//	 float sigma  >  0 - sigma Standard Deviation
-				//	 float kSigma >= 0 - sigma coefficient
-				//		 kSigma * sigma  -->  radius of the circular kernel
-				//	 float threshold   - edge sharpening threshold
-				vec4 smartDeNoise( sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold ) {
-
-					float radius = round( kSigma * sigma );
-					float radQ = radius * radius;
-
-					float invSigmaQx2 = 0.5 / ( sigma * sigma );
-					float invSigmaQx2PI = INV_PI * invSigmaQx2;
-
-					float invThresholdSqx2 = 0.5 / ( threshold * threshold );
-					float invThresholdSqrt2PI = INV_SQRT_OF_2PI / threshold;
-
-					vec4 centrPx = texture2D( tex, uv );
-					centrPx.rgb *= centrPx.a;
-
-					float zBuff = 0.0;
-					vec4 aBuff = vec4( 0.0 );
-					vec2 size = vec2( textureSize( tex, 0 ) );
-
-					vec2 d;
-					for ( d.x = - radius; d.x <= radius; d.x ++ ) {
-
-						float pt = sqrt( radQ - d.x * d.x );
-
-						for ( d.y = - pt; d.y <= pt; d.y ++ ) {
-
-							float blurFactor = exp( - dot( d, d ) * invSigmaQx2 ) * invSigmaQx2PI;
-
-							vec4 walkPx = texture2D( tex, uv + d / size );
-							walkPx.rgb *= walkPx.a;
-
-							vec4 dC = walkPx - centrPx;
-							float deltaFactor = exp( - dot( dC.rgba, dC.rgba ) * invThresholdSqx2 ) * invThresholdSqrt2PI * blurFactor;
-
-							zBuff += deltaFactor;
-							aBuff += deltaFactor * walkPx;
-
-						}
-
-					}
-
-					return aBuff / zBuff;
-
-				}
-
-				void main() {
-
-					gl_FragColor = smartDeNoise( map, vec2( vUv.x, vUv.y ), sigma, kSigma, threshold );
-					#include <tonemapping_fragment>
-					#include <colorspace_fragment>
-					#include <premultiplied_alpha_fragment>
-
-					gl_FragColor.a *= opacity;
-
-				}
-
-			`
-
-		} );
-
-		this.setValues( parameters );
-
-	}
-
+        this.setValues(parameters);
+    }
 }

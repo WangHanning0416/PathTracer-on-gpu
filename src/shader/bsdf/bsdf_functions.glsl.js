@@ -1,23 +1,14 @@
 /*
-wi     : incident vector or light vector (pointing toward the light)
-wo     : outgoing vector or view vector (pointing towards the camera)
-wh     : computed half vector from wo and wi
-Eval   : Get the color and pdf for a direction
-Sample : Get the direction, color, and pdf for a sample
-eta    : Greek character used to denote the "ratio of ior"
-f0     : Amount of light reflected when looking at a surface head on - "fresnel 0"
-f90    : Amount of light reflected at grazing angles
+wi     : 入射光
+wo     : 出射光
 */
 
 export const bsdf_functions = /* glsl */`
 
 	// diffuse
 	float diffuseEval( vec3 wo, vec3 wi, vec3 wh, SurfaceRecord surf, inout vec3 color ) {
-
-		// https://schuttejoe.github.io/post/disneybsdf/
 		float fl = schlickFresnel( wi.z, 0.0 );
 		float fv = schlickFresnel( wo.z, 0.0 );
-
 		float metalFactor = ( 1.0 - surf.metalness );
 		float transFactor = ( 1.0 - surf.transmission );
 		
@@ -25,21 +16,18 @@ export const bsdf_functions = /* glsl */`
 		float retro = rr * ( fl + fv + fl * fv * ( rr - 1.0f ) );
 		float lambert = ( 1.0f - 0.5f * fl ) * ( 1.0f - 0.5f * fv );
 
-		// TODO: subsurface approx?
-
-		// float F = evaluateFresnelWeight( dot( wo, wh ), surf.eta, surf.f0 );
 		float F = disneyFresnel( wo, wi, wh, surf.f0, surf.eta, surf.metalness );
 		color = ( 1.0 - F ) * transFactor * metalFactor * wi.z * surf.color * ( retro + lambert ) / PI;
 
-		return wi.z / PI;
+		return wi.z / PI;  
 
 	}
 
 	vec3 diffuseDirection( vec3 wo, SurfaceRecord surf ) {
-
+       
 		vec3 lightDirection = sampleSphere( rand2( 11 ) );
-		lightDirection.z += 1.0;
-		lightDirection = normalize( lightDirection );
+		lightDirection.z += 1.0;     //保证点都落在z正半轴上
+		lightDirection = normalize( lightDirection );  //正则化，保证都落在上半球上
 
 		return lightDirection;
 
@@ -48,7 +36,6 @@ export const bsdf_functions = /* glsl */`
 	// specular
 	float specularEval( vec3 wo, vec3 wi, vec3 wh, SurfaceRecord surf, inout vec3 color ) {
 
-		// if roughness is set to 0 then D === NaN which results in black pixels
 		float metalness = surf.metalness;
 		float roughness = surf.filteredRoughness;
 
@@ -62,8 +49,6 @@ export const bsdf_functions = /* glsl */`
 		vec3 iridescenceF = evalIridescence( 1.0, surf.iridescenceIor, dot( wi, wh ), surf.iridescenceThickness, f0Color );
 		F = mix( F, iridescenceF,  surf.iridescence );
 
-		// PDF
-		// See 14.1.1 Microfacet BxDFs in https://www.pbr-book.org/
 		float incidentTheta = acos( wo.z );
 		float G = ggxShadowMaskG2( wi, wo, roughness );
 		float D = ggxDistribution( wh, roughness );
@@ -77,81 +62,17 @@ export const bsdf_functions = /* glsl */`
 
 	vec3 specularDirection( vec3 wo, SurfaceRecord surf ) {
 
-		// sample ggx vndf distribution which gives a new normal
 		float roughness = surf.filteredRoughness;
-		vec3 halfVector = ggxDirection(
-			wo,
-			vec2( roughness ),
-			rand2( 12 )
-		);
-
-		// apply to new ray by reflecting off the new normal
+		vec3 halfVector = ggxDirection(wo,vec2( roughness ),rand2( 12 ));
+        //注意这里由于表面并非绝对光光滑，要用ggx来生成新的方向而不能直接用wi
 		return - reflect( wo, halfVector );
 
 	}
-
-
-	// transmission
-	/*
-	float transmissionEval( vec3 wo, vec3 wi, vec3 wh, SurfaceRecord surf, inout vec3 color ) {
-
-		// See section 4.2 in https://www.cs.cornell.edu/~srm/publications/EGSR07-btdf.pdf
-
-		float filteredRoughness = surf.filteredRoughness;
-		float eta = surf.eta;
-		bool frontFace = surf.frontFace;
-		bool thinFilm = surf.thinFilm;
-
-		color = surf.transmission * surf.color;
-
-		float denom = pow( eta * dot( wi, wh ) + dot( wo, wh ), 2.0 );
-		return ggxPDF( wo, wh, filteredRoughness ) / denom;
-
-	}
-
-	vec3 transmissionDirection( vec3 wo, SurfaceRecord surf ) {
-
-		float filteredRoughness = surf.filteredRoughness;
-		float eta = surf.eta;
-		bool frontFace = surf.frontFace;
-
-		// sample ggx vndf distribution which gives a new normal
-		vec3 halfVector = ggxDirection(
-			wo,
-			vec2( filteredRoughness ),
-			rand2( 13 )
-		);
-
-		vec3 lightDirection = refract( normalize( - wo ), halfVector, eta );
-		if ( surf.thinFilm ) {
-
-			lightDirection = - refract( normalize( - lightDirection ), - vec3( 0.0, 0.0, 1.0 ), 1.0 / eta );
-
-		}
-
-		return normalize( lightDirection );
-
-	}
-	*/
-
-	// TODO: This is just using a basic cosine-weighted specular distribution with an
-	// incorrect PDF value at the moment. Update it to correctly use a GGX distribution
+    
+	//transimission
 	float transmissionEval( vec3 wo, vec3 wi, vec3 wh, SurfaceRecord surf, inout vec3 color ) {
 
 		color = surf.transmission * surf.color;
-
-		// PDF
-		// float F = evaluateFresnelWeight( dot( wo, wh ), surf.eta, surf.f0 );
-		// float F = disneyFresnel( wo, wi, wh, surf.f0, surf.eta, surf.metalness );
-		// if ( F >= 1.0 ) {
-
-		// 	return 0.0;
-
-		// }
-
-		// return 1.0 / ( 1.0 - F );
-
-		// reverted to previous to transmission. The above was causing black pixels
 		float eta = surf.eta;
 		float f0 = surf.f0;
 		float cosTheta = min( wo.z, 1.0 );
@@ -159,26 +80,19 @@ export const bsdf_functions = /* glsl */`
 		float reflectance = schlickFresnel( cosTheta, f0 );
 		bool cannotRefract = eta * sinTheta > 1.0;
 		if ( cannotRefract ) {
-
 			return 0.0;
-
 		}
-
 		return 1.0 / ( 1.0 - reflectance );
-
 	}
 
 	vec3 transmissionDirection( vec3 wo, SurfaceRecord surf ) {
-
 		float roughness = surf.filteredRoughness;
 		float eta = surf.eta;
 		vec3 halfVector = normalize( vec3( 0.0, 0.0, 1.0 ) + sampleSphere( rand2( 13 ) ) * roughness );
 		vec3 lightDirection = refract( normalize( - wo ), halfVector, eta );
 
 		if ( surf.thinFilm ) {
-
 			lightDirection = - refract( normalize( - lightDirection ), - vec3( 0.0, 0.0, 1.0 ), 1.0 / eta );
-
 		}
 		return normalize( lightDirection );
 
@@ -200,15 +114,12 @@ export const bsdf_functions = /* glsl */`
 		float fClearcoat = F * D * G / ( 4.0 * abs( wi.z * wo.z ) );
 		color = color * ( 1.0 - surf.clearcoat * F ) + fClearcoat * surf.clearcoat * wi.z;
 
-		// PDF
-		// See equation (27) in http://jcgt.org/published/0003/02/03/
 		return ggxPDF( wo, wh, roughness ) / ( 4.0 * dot( wi, wh ) );
 
 	}
 
 	vec3 clearcoatDirection( vec3 wo, SurfaceRecord surf ) {
 
-		// sample ggx vndf distribution which gives a new normal
 		float roughness = surf.filteredClearcoatRoughness;
 		vec3 halfVector = ggxDirection(
 			wo,
@@ -216,7 +127,6 @@ export const bsdf_functions = /* glsl */`
 			rand2( 14 )
 		);
 
-		// apply to new ray by reflecting off the new normal
 		return - reflect( wo, halfVector );
 
 	}
@@ -231,7 +141,6 @@ export const bsdf_functions = /* glsl */`
 		float D = velvetD( cosThetaH, surf.sheenRoughness );
 		float G = velvetG( cosThetaO, cosThetaI, surf.sheenRoughness );
 
-		// See equation (1) in http://www.aconty.com/pdf/s2017_pbs_imageworks_sheen.pdf
 		vec3 color = surf.sheenColor;
 		color *= D * G / ( 4.0 * abs( cosThetaO * cosThetaI ) );
 		color *= wi.z;
@@ -311,19 +220,11 @@ export const bsdf_functions = /* glsl */`
 
 		// clearcoat
 		if ( clearcoatWi.z >= 0.0 && clearcoatWeight > 0.0 ) {
-
 			vec3 clearcoatHalfVector = getHalfVector( clearcoatWo, clearcoatWi );
 			cpdf = clearcoatEval( clearcoatWo, clearcoatWi, clearcoatHalfVector, surf, color );
-
 		}
 
-		float pdf =
-			dpdf * diffuseWeight
-			+ spdf * specularWeight
-			+ tpdf * transmissionWeight
-			+ cpdf * clearcoatWeight;
-
-		// retrieve specular rays for the shadows flag
+		float pdf =dpdf * diffuseWeight + spdf * specularWeight + tpdf * transmissionWeight + cpdf * clearcoatWeight;
 		specularPdf = spdf * specularWeight + cpdf * clearcoatWeight;
 
 		return pdf;
@@ -358,7 +259,7 @@ export const bsdf_functions = /* glsl */`
 	}
 
 	ScatterRecord bsdfSample( vec3 worldWo, SurfaceRecord surf ) {
-        //如果是一个体积粒子
+        //体积粒子
 		if ( surf.volumeParticle ) {
 			ScatterRecord sampleRec;
 			sampleRec.specularPdf = 0.0;

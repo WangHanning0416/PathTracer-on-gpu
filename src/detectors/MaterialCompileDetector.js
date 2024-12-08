@@ -1,6 +1,6 @@
+//检测material能否在设备上正常运行
 import { Mesh, BoxGeometry, PerspectiveCamera } from 'three';
 
-// Returns whether a material can be compiled and run on the current device or not
 export class MaterialCompileDetector {
 
 	constructor( renderer ) {

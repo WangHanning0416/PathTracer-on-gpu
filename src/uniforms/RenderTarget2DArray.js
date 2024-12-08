@@ -67,14 +67,11 @@ export class RenderTarget2DArray extends WebGLArrayRenderTarget {
 
 	setTextures( renderer, textures, width = this.width, height = this.height ) {
 
-		// save previous renderer state
 		const prevRenderTarget = renderer.getRenderTarget();
 		const prevToneMapping = renderer.toneMapping;
 		const prevAlpha = renderer.getClearAlpha();
 		renderer.getClearColor( prevColor );
 
-		// resize the render target and ensure we don't have an empty texture
-		// render target depth must be >= 1 to avoid unbound texture error on android devices
 		const depth = textures.length || 1;
 		if ( width !== this.width || height !== this.height || this.depth !== depth ) {
 

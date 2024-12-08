@@ -737,6 +737,7 @@ class PathTracingRenderer {
 },{"three":"ktPTu","three/examples/jsm/postprocessing/Pass.js":"i2IfB","../materials/fullscreen/BlendMaterial.js":"ecXtc","../utils/SobolNumberMapGenerator.js":"bNCSm","../materials/pathtracing/PhysicalPathTracingMaterial.js":"2zJa6","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"ecXtc":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
+//实现混合的效果
 parcelHelpers.export(exports, "BlendMaterial", ()=>BlendMaterial);
 var _three = require("three");
 var _materialBaseJs = require("../MaterialBase.js");
@@ -756,43 +757,27 @@ class BlendMaterial extends (0, _materialBaseJs.MaterialBase) {
                 }
             },
             vertexShader: /* glsl */ `
-
 				varying vec2 vUv;
-
 				void main() {
-
 					vUv = uv;
 					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-
 				}`,
             fragmentShader: /* glsl */ `
-
 				uniform float opacity;
-
 				uniform sampler2D target1;
 				uniform sampler2D target2;
-
 				varying vec2 vUv;
-
 				void main() {
-
 					vec4 color1 = texture2D( target1, vUv );
 					vec4 color2 = texture2D( target2, vUv );
-
 					float invOpacity = 1.0 - opacity;
 					float totalAlpha = color1.a * invOpacity + color2.a * opacity;
-
 					if ( color1.a != 0.0 || color2.a != 0.0 ) {
-
 						gl_FragColor.rgb = color1.rgb * ( invOpacity * color1.a / totalAlpha ) + color2.rgb * ( opacity * color2.a / totalAlpha );
 						gl_FragColor.a = totalAlpha;
-
 					} else {
-
 						gl_FragColor = vec4( 0.0 );
-
 					}
-
 				}`
         });
         this.setValues(parameters);
@@ -2688,14 +2673,9 @@ function getStride(channels) {
     else return channels;
 }
 function getFormat(channels) {
-    switch(channels){
-        case 1:
-            return 0, _three.RedFormat;
-        case 2:
-            return 0, _three.RGFormat;
-        default:
-            return 0, _three.RGBAFormat;
-    }
+    if (channels == 1) return 0, _three.RedFormat;
+    else if (channels == 2) return 0, _three.RGFormat;
+    else return 0, _three.RGBAFormat;
 }
 class BlueNoiseTexture extends (0, _three.DataTexture) {
     constructor(size = 64, channels = 1){
@@ -2967,64 +2947,53 @@ parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "inside_fog_volume_function", ()=>inside_fog_volume_function);
 const inside_fog_volume_function = /* glsl */ `
 
-#ifndef FOG_CHECK_ITERATIONS
-#define FOG_CHECK_ITERATIONS 30
-#endif
+	#ifndef FOG_CHECK
+	#define FOG_CHECK 30
+	#endif
 
-// returns whether the given material is a fog material or not
-bool isMaterialFogVolume( sampler2D materials, uint materialIndex ) {
+	bool isMaterialFogVolume( sampler2D materials, uint materialIndex ) {
 
-	uint i = materialIndex * uint( MATERIAL_PIXELS );
-	vec4 s14 = texelFetch1D( materials, i + 14u );
-	return bool( int( s14.b ) & 4 );
-
-}
-
-// returns true if we're within the first fog volume we hit
-bool bvhIntersectFogVolumeHit(
-	vec3 rayOrigin, vec3 rayDirection,
-	usampler2D materialIndexAttribute, sampler2D materials,
-	inout Material material
-) {
-
-	material.fogVolume = false;
-
-	for ( int i = 0; i < FOG_CHECK_ITERATIONS; i ++ ) {
-
-		// find nearest hit
-		uvec4 faceIndices = uvec4( 0u );
-		vec3 faceNormal = vec3( 0.0, 0.0, 1.0 );
-		vec3 barycoord = vec3( 0.0 );
-		float side = 1.0;
-		float dist = 0.0;
-		bool hit = bvhIntersectFirstHit( bvh, rayOrigin, rayDirection, faceIndices, faceNormal, barycoord, side, dist );
-		if ( hit ) {
-
-			// if it's a fog volume return whether we hit the front or back face
-			uint materialIndex = uTexelFetch1D( materialIndexAttribute, faceIndices.x ).r;
-			if ( isMaterialFogVolume( materials, materialIndex ) ) {
-
-				material = readMaterialInfo( materials, materialIndex );
-				return side == - 1.0;
-
-			} else {
-
-				// move the ray forward
-				rayOrigin = stepRayOrigin( rayOrigin, rayDirection, - faceNormal, dist );
-
-			}
-
-		} else {
-
-			return false;
-
-		}
+		uint i = materialIndex * uint( MATERIAL_PIXELS );
+		vec4 s14 = texelFetch1D( materials, i + 14u );
+		return bool( int( s14.b ) & 4 );
 
 	}
 
-	return false;
+	// \u{5224}\u{65AD}\u{662F}\u{5426}\u{5728}\u{7B2C}\u{4E00}\u{6B21}\u{4E0E}\u{96FE}\u{4F53}\u{76F8}\u{4EA4}\u{7684}\u{5730}\u{65B9}
+	bool bvhIntersectFogVolumeHit(
+		vec3 rayOrigin, vec3 rayDirection,
+		usampler2D materialIndexAttribute, sampler2D materials,
+		inout Material material
+	) {
+		material.fogVolume = false;
 
-}
+		// \u{5C04}\u{7EBF}\u{4E0E}\u{96FE}\u{4F53}\u{76F8}\u{4EA4}\u{7684}\u{6700}\u{5927}\u{68C0}\u{67E5}\u{6B21}\u{6570}
+		for ( int i = 0; i < FOG_CHECK; i ++ ) {
+
+			// \u{67E5}\u{627E}\u{6700}\u{8FD1}\u{7684}\u{4EA4}\u{70B9}
+			uvec4 faceIndices = uvec4( 0u );
+			vec3 faceNormal = vec3( 0.0, 0.0, 1.0 );
+			vec3 barycoord = vec3( 0.0 );
+			float side = 1.0;
+			float dist = 0.0;
+			// \u{8BA1}\u{7B97}\u{5C04}\u{7EBF}\u{4E0E} BVH\u{FF08}\u{5305}\u{56F4}\u{4F53}\u{5C42}\u{6B21}\u{FF09}\u{52A0}\u{901F}\u{7ED3}\u{6784}\u{7684}\u{4EA4}\u{70B9}
+			bool hit = bvhIntersectFirstHit( bvh, rayOrigin, rayDirection, faceIndices, faceNormal, barycoord, side, dist );
+			if ( hit ) {
+				uint materialIndex = uTexelFetch1D( materialIndexAttribute, faceIndices.x ).r;
+				if ( isMaterialFogVolume( materials, materialIndex ) ) {
+					material = readMaterialInfo( materials, materialIndex );
+					return side == - 1.0;
+				} 
+				else {
+					rayOrigin = stepRayOrigin( rayOrigin, rayDirection, - faceNormal, dist );
+				}
+			} 
+			else {
+				return false;
+			}
+		}
+		return false;
+	}
 
 `;
 
@@ -3036,8 +3005,6 @@ const ray_any_hit_function = /* glsl */ `
 
 	bool bvhIntersectAnyHit(
 		vec3 rayOrigin, vec3 rayDirection,
-
-		// output variables
 		inout float side, inout float dist
 	) {
 
@@ -3045,68 +3012,44 @@ const ray_any_hit_function = /* glsl */ `
 		vec3 faceNormal;
 		vec3 barycoord;
 
-		// stack needs to be twice as long as the deepest tree we expect because
-		// we push both the left and right child onto the stack every traversal
 		int ptr = 0;
 		uint stack[ 60 ];
 		stack[ 0 ] = 0u;
 
 		float triangleDistance = 1e20;
 		while ( ptr > - 1 && ptr < 60 ) {
-
 			uint currNodeIndex = stack[ ptr ];
 			ptr --;
-
-			// check if we intersect the current bounds
 			float boundsHitDistance = intersectsBVHNodeBounds( rayOrigin, rayDirection, bvh, currNodeIndex );
 			if ( boundsHitDistance == INFINITY ) {
-
 				continue;
-
 			}
-
 			uvec2 boundsInfo = uTexelFetch1D( bvh.bvhContents, currNodeIndex ).xy;
 			bool isLeaf = bool( boundsInfo.x & 0xffff0000u );
 
 			if ( isLeaf ) {
-
 				uint count = boundsInfo.x & 0x0000ffffu;
 				uint offset = boundsInfo.y;
-
 				bool found = intersectTriangles(
 					bvh, rayOrigin, rayDirection, offset, count, triangleDistance,
 					faceIndices, faceNormal, barycoord, side, dist
 				);
-
 				if ( found ) {
-
 					return true;
-
 				}
-
-			} else {
-
+			}
+			else {
 				uint leftIndex = currNodeIndex + 1u;
 				uint splitAxis = boundsInfo.x & 0x0000ffffu;
 				uint rightIndex = boundsInfo.y;
-
-				// set c2 in the stack so we traverse it later. We need to keep track of a pointer in
-				// the stack while we traverse. The second pointer added is the one that will be
-				// traversed first
 				ptr ++;
 				stack[ ptr ] = leftIndex;
-
 				ptr ++;
 				stack[ ptr ] = rightIndex;
-
 			}
-
 		}
-
 		return false;
-
 	}
-
 `;
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"5BM54":[function(require,module,exports,__globalThis) {
@@ -3131,15 +3074,8 @@ parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "attenuate_hit_function", ()=>attenuate_hit_function);
 const attenuate_hit_function = /* glsl */ `
 
-	// step through multiple surface hits and accumulate color attenuation based on transmissive surfaces
-	// returns true if a solid surface was hit
-	bool attenuateHit(
-		RenderState state,
-		Ray ray, float rayDist,
-		out vec3 color
-	) {
-
-		// store the original bounce index so we can reset it after
+	bool attenuateHit(RenderState state,Ray ray, float rayDist,out vec3 color) 
+	{
 		uint originalBounceIndex = sobolBounceIndex;
 
 		int traversals = state.traversals;
@@ -3149,7 +3085,6 @@ const attenuate_hit_function = /* glsl */ `
 
 		vec3 startPoint = ray.origin;
 
-		// hit results
 		SurfaceHit surfaceHit;
 
 		color = vec3( 1.0 );
@@ -3176,14 +3111,10 @@ const attenuate_hit_function = /* glsl */ `
 
 				}
 
-				// TODO: attenuate the contribution based on the PDF of the resulting ray including refraction values
-				// Should be able to work using the material BSDF functions which will take into account specularity, etc.
-				// TODO: should we account for emissive surfaces here?
 
 				uint materialIndex = uTexelFetch1D( materialIndexAttribute, surfaceHit.faceIndices.x ).r;
 				Material material = readMaterialInfo( materials, materialIndex );
 
-				// adjust the ray to the new surface
 				bool isEntering = surfaceHit.side == 1.0;
 				ray.origin = stepRayOrigin( ray.origin, ray.direction, - surfaceHit.faceNormal, surfaceHit.dist );
 
@@ -3256,30 +3187,19 @@ const attenuate_hit_function = /* glsl */ `
 				float transmissionFactor = ( 1.0 - metalness ) * transmission;
 				if (
 					transmissionFactor < rand( 9 ) && ! (
-						// material sidedness
 						material.side != 0.0 && surfaceHit.side == material.side
-
-						// alpha test
 						|| useAlphaTest && albedo.a < alphaTest
-
-						// opacity
 						|| material.transparent && ! useAlphaTest && albedo.a < rand( 10 )
 					)
 				) {
-
 					result = true;
 					break;
-
 				}
 
 				if ( surfaceHit.side == 1.0 && isEntering ) {
-
-					// only attenuate by surface color on the way in
 					color *= mix( vec3( 1.0 ), albedo.rgb, transmissionFactor );
-
-				} else if ( surfaceHit.side == - 1.0 ) {
-
-					// attenuate by medium once we hit the opposite side of the model
+				} 
+				else if ( surfaceHit.side == - 1.0 ) {
 					color *= transmissionAttenuation( surfaceHit.dist, material.attenuationColor, material.attenuationDistance );
 
 				}
@@ -3300,105 +3220,107 @@ const attenuate_hit_function = /* glsl */ `
 			}
 
 		}
-
-		// reset the bounce index
 		sobolBounceIndex = originalBounceIndex;
 		return result;
-
 	}
 
 `;
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"hhC6A":[function(require,module,exports,__globalThis) {
+//生成一个从相机发出的光线（可算写到你了）
+//最终返回一个描述该光线起点和方向的 Ray 对象
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "camera_util_functions", ()=>camera_util_functions);
 const camera_util_functions = /* glsl */ `
 
-	vec3 ndcToRayOrigin( vec2 coord ) {
+    // \u{5C06}NDC\u{5750}\u{6807}\u{8F6C}\u{6362}\u{4E3A}\u{5149}\u{7EBF}\u{8D77}\u{70B9}
+    vec3 ndcToRayOrigin( vec2 coord ) {
+        vec4 rayOrigin4 = cameraWorldMatrix * invProjectionMatrix * vec4( coord, - 1.0, 1.0 );
+        return rayOrigin4.xyz / rayOrigin4.w;
+    }
 
-		vec4 rayOrigin4 = cameraWorldMatrix * invProjectionMatrix * vec4( coord, - 1.0, 1.0 );
-		return rayOrigin4.xyz / rayOrigin4.w;
-	}
+    // \u{83B7}\u{53D6}\u{76F8}\u{673A}\u{5149}\u{7EBF}
+    Ray getCameraRay() {
+        vec2 ssd = vec2( 1.0 ) / resolution;
 
-	Ray getCameraRay() {
+        // \u{4F7F}\u{7528}\u{6297}\u{952F}\u{9F7F}\u{FF08}AA\u{FF09}\u{5BF9}\u{76F8}\u{673A}\u{5149}\u{7EBF}\u{8FDB}\u{884C}\u{6296}\u{52A8}\u{FF0C}\u{968F}\u{673A}\u{9009}\u{62E9}\u{4E00}\u{4E2A}\u{50CF}\u{7D20}\u{9644}\u{8FD1}\u{7684}UV\u{5750}\u{6807}
+        vec2 ruv = rand2( 0 );
+        vec2 jitteredUv = vUv + vec2( tentFilter( ruv.x ) * ssd.x, tentFilter( ruv.y ) * ssd.y );
+        Ray ray;
 
-		vec2 ssd = vec2( 1.0 ) / resolution;
+        #if CAMERA_TYPE == 2
 
-		// Jitter the camera ray by finding a uv coordinate at a random sample
-		// around this pixel's UV coordinate for AA
-		vec2 ruv = rand2( 0 );
-		vec2 jitteredUv = vUv + vec2( tentFilter( ruv.x ) * ssd.x, tentFilter( ruv.y ) * ssd.y );
-		Ray ray;
+            // \u{5904}\u{7406}\u{7B49}\u{8DDD}\u{6295}\u{5F71}\u{FF08}Equirectangular projection\u{FF09}
+            vec4 rayDirection4 = vec4( equirectUvToDirection( jitteredUv ), 0.0 );
+            vec4 rayOrigin4 = vec4( 0.0, 0.0, 0.0, 1.0 );
 
-		#if CAMERA_TYPE == 2
+            // \u{5C06}\u{76F8}\u{673A}\u{4E16}\u{754C}\u{77E9}\u{9635}\u{5E94}\u{7528}\u{5230}\u{5149}\u{7EBF}\u{65B9}\u{5411}\u{548C}\u{5149}\u{7EBF}\u{539F}\u{70B9}
+            rayDirection4 = cameraWorldMatrix * rayDirection4;
+            rayOrigin4 = cameraWorldMatrix * rayOrigin4;
 
-			// Equirectangular projection
-			vec4 rayDirection4 = vec4( equirectUvToDirection( jitteredUv ), 0.0 );
-			vec4 rayOrigin4 = vec4( 0.0, 0.0, 0.0, 1.0 );
+            // \u{5F52}\u{4E00}\u{5316}\u{5149}\u{7EBF}\u{65B9}\u{5411}
+            ray.direction = normalize( rayDirection4.xyz );
+            ray.origin = rayOrigin4.xyz / rayOrigin4.w;
 
-			rayDirection4 = cameraWorldMatrix * rayDirection4;
-			rayOrigin4 = cameraWorldMatrix * rayOrigin4;
+        #else
 
-			ray.direction = normalize( rayDirection4.xyz );
-			ray.origin = rayOrigin4.xyz / rayOrigin4.w;
+            // \u{83B7}\u{53D6}\u{5F52}\u{4E00}\u{5316}\u{8BBE}\u{5907}\u{5750}\u{6807}\u{FF08}NDC\u{FF09}\u{FF0C}\u{8303}\u{56F4}\u{4E3A}[-1, 1]
+            vec2 ndc = 2.0 * jitteredUv - vec2( 1.0 );
+            ray.origin = ndcToRayOrigin( ndc );
 
-		#else
+            #if CAMERA_TYPE == 1
 
-			// get [- 1, 1] normalized device coordinates
-			vec2 ndc = 2.0 * jitteredUv - vec2( 1.0 );
-			ray.origin = ndcToRayOrigin( ndc );
+                // \u{5904}\u{7406}\u{6B63}\u{5C04}\u{6295}\u{5F71}\u{FF08}Orthographic projection\u{FF09}
+                ray.direction = ( cameraWorldMatrix * vec4( 0.0, 0.0, - 1.0, 0.0 ) ).xyz;
+                ray.direction = normalize( ray.direction );
 
-			#if CAMERA_TYPE == 1
+            #else
 
-				// Orthographic projection
-				ray.direction = ( cameraWorldMatrix * vec4( 0.0, 0.0, - 1.0, 0.0 ) ).xyz;
-				ray.direction = normalize( ray.direction );
+                // \u{900F}\u{89C6}\u{6295}\u{5F71}\u{FF08}Perspective projection\u{FF09}
+                ray.direction = normalize( mat3( cameraWorldMatrix ) * ( invProjectionMatrix * vec4( ndc, 0.0, 1.0 ) ).xyz );
 
-			#else
+            #endif
 
-				// Perspective projection
-				ray.direction = normalize( mat3( cameraWorldMatrix ) * ( invProjectionMatrix * vec4( ndc, 0.0, 1.0 ) ).xyz );
+        #endif
 
-			#endif
+        #if FEATURE_DOF
+        {
 
-		#endif
+            // \u{666F}\u{6DF1}\u{6548}\u{679C}\u{FF08}Depth of Field\u{FF09}
+            vec3 focalPoint = ray.origin + normalize( ray.direction ) * physicalCamera.focusDistance;
 
-		#if FEATURE_DOF
-		{
+            // \u{83B7}\u{53D6}\u{5149}\u{5708}\u{6837}\u{672C}
+            // \u{5982}\u{679C}\u{5149}\u{5708}\u{53F6}\u{7247}\u{6570}\u{4E3A}0\u{FF0C}\u{5047}\u{8BBE}\u{4F7F}\u{7528}\u{5706}\u{5F62}\u{5149}\u{5708}
+            vec3 shapeUVW = rand3( 1 );
+            int blades = physicalCamera.apertureBlades;
+            float anamorphicRatio = physicalCamera.anamorphicRatio;
+            vec2 apertureSample = blades == 0 ? sampleCircle( shapeUVW.xy ) : sampleRegularPolygon( blades, shapeUVW );
+            apertureSample *= physicalCamera.bokehSize * 0.5 * 1e-3;
 
-			// depth of field
-			vec3 focalPoint = ray.origin + normalize( ray.direction ) * physicalCamera.focusDistance;
+            // \u{65CB}\u{8F6C}\u{5149}\u{5708}\u{5F62}\u{72B6}
+            apertureSample =
+                rotateVector( apertureSample, physicalCamera.apertureRotation ) *
+                saturate( vec2( anamorphicRatio, 1.0 / anamorphicRatio ) );
 
-			// get the aperture sample
-			// if blades === 0 then we assume a circle
-			vec3 shapeUVW= rand3( 1 );
-			int blades = physicalCamera.apertureBlades;
-			float anamorphicRatio = physicalCamera.anamorphicRatio;
-			vec2 apertureSample = blades == 0 ? sampleCircle( shapeUVW.xy ) : sampleRegularPolygon( blades, shapeUVW );
-			apertureSample *= physicalCamera.bokehSize * 0.5 * 1e-3;
+            // \u{521B}\u{5EFA}\u{65B0}\u{7684}\u{5149}\u{7EBF}\u{FF0C}\u{5149}\u{7EBF}\u{8D77}\u{70B9}\u{7A0D}\u{5FAE}\u{8C03}\u{6574}
+            ray.origin += ( cameraWorldMatrix * vec4( apertureSample, 0.0, 0.0 ) ).xyz;
+            ray.direction = focalPoint - ray.origin;
 
-			// rotate the aperture shape
-			apertureSample =
-				rotateVector( apertureSample, physicalCamera.apertureRotation ) *
-				saturate( vec2( anamorphicRatio, 1.0 / anamorphicRatio ) );
+        }
+        #endif
 
-			// create the new ray
-			ray.origin += ( cameraWorldMatrix * vec4( apertureSample, 0.0, 0.0 ) ).xyz;
-			ray.direction = focalPoint - ray.origin;
+        // \u{786E}\u{4FDD}\u{5149}\u{7EBF}\u{65B9}\u{5411}\u{662F}\u{5355}\u{4F4D}\u{5411}\u{91CF}
+        ray.direction = normalize( ray.direction );
 
-		}
-		#endif
+        return ray;
 
-		ray.direction = normalize( ray.direction );
-
-		return ray;
-
-	}
+    }
 
 `;
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"fTUFC":[function(require,module,exports,__globalThis) {
+//计算直接光照的贡献，包括从环境光或场景中的光源
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "direct_light_contribution_function", ()=>direct_light_contribution_function);
@@ -3408,96 +3330,66 @@ const direct_light_contribution_function = /*glsl*/ `
 
 		vec3 result = vec3( 0.0 );
 
-		// uniformly pick a light or environment map
+		// \u{968F}\u{673A}\u{9009}\u{62E9}\u{4E00}\u{4E2A}\u{5149}\u{6E90}\u{6216}\u{73AF}\u{5883}\u{8D34}\u{56FE}
 		if( lightsDenom != 0.0 && rand( 5 ) < float( lights.count ) / lightsDenom ) {
 
-			// sample a light or environment
+			// \u{4ECE}\u{5149}\u{6E90}\u{6216}\u{73AF}\u{5883}\u{4E2D}\u{91C7}\u{6837}
 			LightRecord lightRec = randomLightSample( lights.tex, iesProfiles, lights.count, rayOrigin, rand3( 6 ) );
+			bool isSampleBelowSurface = !surf.volumeParticle && dot( surf.faceNormal, lightRec.direction ) < 0.0;
 
-			bool isSampleBelowSurface = ! surf.volumeParticle && dot( surf.faceNormal, lightRec.direction ) < 0.0;
-			if ( isSampleBelowSurface ) {
-
-				lightRec.pdf = 0.0;
-
+			if (isSampleBelowSurface) {
+				lightRec.pdf = 0.0; // \u{5982}\u{679C}\u{91C7}\u{6837}\u{5728}\u{8868}\u{9762}\u{80CC}\u{9762}\u{FF0C}\u{5C06}\u{5176} PDF \u{8BBE}\u{7F6E}\u{4E3A} 0
 			}
 
-			// check if a ray could even reach the light area
-			Ray lightRay;
-			lightRay.origin = rayOrigin;
-			lightRay.direction = lightRec.direction;
+			// \u{68C0}\u{67E5}\u{5149}\u{7EBF}\u{662F}\u{5426}\u{80FD}\u{5230}\u{8FBE}\u{5149}\u{6E90}
+			Ray lightRay = Ray(rayOrigin, lightRec.direction);
 			vec3 attenuatedColor;
-			if (
-				lightRec.pdf > 0.0 &&
-				isDirectionValid( lightRec.direction, surf.normal, surf.faceNormal ) &&
-				! attenuateHit( state, lightRay, lightRec.dist, attenuatedColor )
-			) {
+			if (lightRec.pdf > 0.0 && isDirectionValid( lightRec.direction, surf.normal, surf.faceNormal ) && !attenuateHit( state, lightRay, lightRec.dist, attenuatedColor )) {
 
-				// get the material pdf
+				// \u{8BA1}\u{7B97}\u{6750}\u{8D28}\u{7684} PDF
 				vec3 sampleColor;
 				float lightMaterialPdf = bsdfResult( worldWo, lightRec.direction, surf, sampleColor );
-				bool isValidSampleColor = all( greaterThanEqual( sampleColor, vec3( 0.0 ) ) );
-				if ( lightMaterialPdf > 0.0 && isValidSampleColor ) {
+				if (lightMaterialPdf > 0.0 && all( greaterThanEqual( sampleColor, vec3( 0.0 ) ) )) {
 
-					// weight the direct light contribution
+					// \u{52A0}\u{6743}\u{8BA1}\u{7B97}\u{76F4}\u{63A5}\u{5149}\u{7167}\u{8D21}\u{732E}
 					float lightPdf = lightRec.pdf / lightsDenom;
-					float misWeight = lightRec.type == SPOT_LIGHT_TYPE || lightRec.type == DIR_LIGHT_TYPE || lightRec.type == POINT_LIGHT_TYPE ? 1.0 : misHeuristic( lightPdf, lightMaterialPdf );
+					float misWeight = (lightRec.type == SPOT_LIGHT_TYPE || lightRec.type == DIR_LIGHT_TYPE || lightRec.type == POINT_LIGHT_TYPE) ? 1.0 : misHeuristic( lightPdf, lightMaterialPdf );
 					result = attenuatedColor * lightRec.emission * state.throughputColor * sampleColor * misWeight / lightPdf;
-
 				}
-
 			}
 
-		} else if ( envMapInfo.totalSum != 0.0 && environmentIntensity != 0.0 ) {
-
-			// find a sample in the environment map to include in the contribution
+		} 
+		else if (envMapInfo.totalSum != 0.0 && environmentIntensity != 0.0) {
+			// \u{4ECE}\u{73AF}\u{5883}\u{8D34}\u{56FE}\u{4E2D}\u{91C7}\u{6837}
 			vec3 envColor, envDirection;
 			float envPdf = sampleEquirectProbability( rand2( 7 ), envColor, envDirection );
 			envDirection = invEnvRotation3x3 * envDirection;
 
-			// this env sampling is not set up for transmissive sampling and yields overly bright
-			// results so we ignore the sample in this case.
-			// TODO: this should be improved but how? The env samples could traverse a few layers?
-			bool isSampleBelowSurface = ! surf.volumeParticle && dot( surf.faceNormal, envDirection ) < 0.0;
-			if ( isSampleBelowSurface ) {
-
-				envPdf = 0.0;
-
+			bool isSampleBelowSurface = !surf.volumeParticle && dot( surf.faceNormal, envDirection ) < 0.0;
+			if (isSampleBelowSurface) {
+				envPdf = 0.0; // \u{5982}\u{679C}\u{91C7}\u{6837}\u{5728}\u{8868}\u{9762}\u{80CC}\u{9762}\u{FF0C}\u{5C06}\u{5176} PDF \u{8BBE}\u{7F6E}\u{4E3A} 0
 			}
 
-			// check if a ray could even reach the surface
-			Ray envRay;
-			envRay.origin = rayOrigin;
-			envRay.direction = envDirection;
+			// \u{68C0}\u{67E5}\u{5149}\u{7EBF}\u{662F}\u{5426}\u{80FD}\u{5230}\u{8FBE}\u{73AF}\u{5883}
+			Ray envRay = Ray(rayOrigin, envDirection);
 			vec3 attenuatedColor;
-			if (
-				envPdf > 0.0 &&
-				isDirectionValid( envDirection, surf.normal, surf.faceNormal ) &&
-				! attenuateHit( state, envRay, INFINITY, attenuatedColor )
-			) {
+			if (envPdf > 0.0 && isDirectionValid( envDirection, surf.normal, surf.faceNormal ) && !attenuateHit( state, envRay, INFINITY, attenuatedColor )) {
 
-				// get the material pdf
+				// \u{8BA1}\u{7B97}\u{6750}\u{8D28}\u{7684} PDF
 				vec3 sampleColor;
 				float envMaterialPdf = bsdfResult( worldWo, envDirection, surf, sampleColor );
-				bool isValidSampleColor = all( greaterThanEqual( sampleColor, vec3( 0.0 ) ) );
-				if ( envMaterialPdf > 0.0 && isValidSampleColor ) {
+				if (envMaterialPdf > 0.0 && all( greaterThanEqual( sampleColor, vec3( 0.0 ) ) )) {
 
-					// weight the direct light contribution
+					// \u{52A0}\u{6743}\u{8BA1}\u{7B97}\u{76F4}\u{63A5}\u{5149}\u{7167}\u{8D21}\u{732E}
 					envPdf /= lightsDenom;
 					float misWeight = misHeuristic( envPdf, envMaterialPdf );
 					result = attenuatedColor * environmentIntensity * envColor * state.throughputColor * sampleColor * misWeight / envPdf;
-
 				}
-
 			}
 
 		}
-
-		// Function changed to have a single return statement to potentially help with crashes on Mac OS.
-		// See issue #470
 		return result;
-
 	}
-
 `;
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"faSGg":[function(require,module,exports,__globalThis) {
@@ -3557,31 +3449,16 @@ const get_surface_record_function = /* glsl */ `
 			albedo.a *= texture2D( textures, vec3( uvPrime.xy, material.alphaMap ) ).x;
 
 		}
-
-		// possibly skip this sample if it's transparent, alpha test is enabled, or we hit the wrong material side
-		// and it's single sided.
-		// - alpha test is disabled when it === 0
-		// - the material sidedness test is complicated because we want light to pass through the back side but still
-		// be able to see the front side. This boolean checks if the side we hit is the front side on the first ray
-		// and we're rendering the other then we skip it. Do the opposite on subsequent bounces to get incoming light.
 		float alphaTest = material.alphaTest;
 		bool useAlphaTest = alphaTest != 0.0;
 		if (
-			// material sidedness
 			material.side != 0.0 && surfaceHit.side != material.side
-
-			// alpha test
 			|| useAlphaTest && albedo.a < alphaTest
-
-			// opacity
 			|| material.transparent && ! useAlphaTest && albedo.a < rand( 3 )
 		) {
-
 			return SKIP_SURFACE;
-
 		}
 
-		// fetch the interpolated smooth normal
 		vec3 normal = normalize( textureSampleBarycoord(
 			attributesArray,
 			ATTR_NORMAL,
@@ -3627,12 +3504,7 @@ const get_surface_record_function = /* glsl */ `
 
 		// normal
 		if ( material.flatShading ) {
-
-			// if we're rendering a flat shaded object then use the face normals - the face normal
-			// is provided based on the side the ray hits the mesh so flip it to align with the
-			// interpolated vertex normals.
 			normal = surfaceHit.faceNormal * surfaceHit.side;
-
 		}
 
 		vec3 baseNormal = normal;
@@ -3644,9 +3516,6 @@ const get_surface_record_function = /* glsl */ `
 				surfaceHit.barycoord,
 				surfaceHit.faceIndices.xyz
 			);
-
-			// some provided tangents can be malformed (0, 0, 0) causing the normal to be degenerate
-			// resulting in NaNs and slow path tracing.
 			if ( length( tangentSample.xyz ) > 0.0 ) {
 
 				vec3 tangent = normalize( tangentSample.xyz );
@@ -3693,8 +3562,6 @@ const get_surface_record_function = /* glsl */ `
 				surfaceHit.faceIndices.xyz
 			);
 
-			// some provided tangents can be malformed (0, 0, 0) causing the normal to be degenerate
-			// resulting in NaNs and slow path tracing.
 			if ( length( tangentSample.xyz ) > 0.0 ) {
 
 				vec3 tangent = normalize( tangentSample.xyz );
@@ -3796,24 +3663,12 @@ const get_surface_record_function = /* glsl */ `
 
 		surf.specularColor = specularColor;
 		surf.specularIntensity = specularIntensity;
-
-		// apply perceptual roughness factor from gltf. sheen perceptual roughness is
-		// applied by its brdf function
-		// https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#microfacet-surfaces
 		surf.roughness = roughness * roughness;
 		surf.clearcoatRoughness = clearcoatRoughness * clearcoatRoughness;
 		surf.sheenRoughness = sheenRoughness;
-
-		// frontFace is used to determine transmissive properties and PDF. If no transmission is used
-		// then we can just always assume this is a front face.
 		surf.frontFace = surfaceHit.side == 1.0 || transmission == 0.0;
 		surf.eta = material.thinFilm || surf.frontFace ? 1.0 / material.ior : material.ior;
 		surf.f0 = iorRatioToF0( surf.eta );
-
-		// Compute the filtered roughness value to use during specular reflection computations.
-		// The accumulated roughness value is scaled by a user setting and a "magic value" of 5.0.
-		// If we're exiting something transmissive then scale the factor down significantly so we can retain
-		// sharp internal reflections
 		surf.filteredRoughness = applyFilteredGlossy( surf.roughness, accumulatedRoughness );
 		surf.filteredClearcoatRoughness = applyFilteredGlossy( surf.clearcoatRoughness, accumulatedRoughness );
 
@@ -3885,55 +3740,58 @@ const render_structs = /* glsl */ `
 `;
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"b7Dry":[function(require,module,exports,__globalThis) {
+//计算光线与场景中的物体的交点，并且判断是否与物体（如表面或雾体）相交
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "trace_scene_function", ()=>trace_scene_function);
 const trace_scene_function = /* glsl */ `
 
-	#define NO_HIT 0
-	#define SURFACE_HIT 1
-	#define LIGHT_HIT 2
-	#define FOG_HIT 3
+	#define NO_HIT 0          // \u{6CA1}\u{6709}\u{4EA4}\u{70B9}
+	#define SURFACE_HIT 1     // \u{5149}\u{7EBF}\u{4E0E}\u{8868}\u{9762}\u{76F8}\u{4EA4}
+	#define LIGHT_HIT 2       // \u{5149}\u{7EBF}\u{4E0E}\u{5149}\u{6E90}\u{76F8}\u{4EA4}
+	#define FOG_HIT 3         // \u{5149}\u{7EBF}\u{4E0E}\u{96FE}\u{4F53}\u{76F8}\u{4EA4}
 
-	// Passing the global variable 'lights' into this function caused shader program errors.
-	// So global variables like 'lights' and 'bvh' were moved out of the function parameters.
-	// For more information, refer to: https://github.com/gkjohnson/three-gpu-pathtracer/pull/457
-	int traceScene(
-		Ray ray, Material fogMaterial, inout SurfaceHit surfaceHit
-	) {
+	int traceScene(Ray ray, Material fogMaterial, inout SurfaceHit surfaceHit) {
+		int result = NO_HIT;  // \u{521D}\u{59CB}\u{8BBE}\u{7F6E}\u{4E3A}\u{6CA1}\u{6709}\u{4EA4}\u{70B9}
 
-		int result = NO_HIT;
-		bool hit = bvhIntersectFirstHit( bvh, ray.origin, ray.direction, surfaceHit.faceIndices, surfaceHit.faceNormal, surfaceHit.barycoord, surfaceHit.side, surfaceHit.dist );
+		// \u{68C0}\u{67E5}\u{5149}\u{7EBF}\u{662F}\u{5426}\u{4E0E}\u{573A}\u{666F}\u{4E2D}\u{7684}\u{7269}\u{4F53}\u{6709}\u{4EA4}\u{70B9}\u{FF0C}\u{4F7F}\u{7528}BVH\u{52A0}\u{901F}\u{7ED3}\u{6784}
+		bool hit = bvhIntersectFirstHit(
+			bvh, 
+			ray.origin, 
+			ray.direction, 
+			surfaceHit.faceIndices, 
+			surfaceHit.faceNormal, 
+			surfaceHit.barycoord, 
+			surfaceHit.side, 
+			surfaceHit.dist
+		);
 
-		#if FEATURE_FOG
+		#if FEATURE_FOG  // \u{5982}\u{679C}\u{542F}\u{7528}\u{4E86}\u{96FE}\u{4F53}\u{6548}\u{679C}
 
-		if ( fogMaterial.fogVolume ) {
+		// \u{5982}\u{679C}\u{8BE5}\u{6750}\u{8D28}\u{4E3A}\u{96FE}\u{4F53}\u{6750}\u{8D28}
+		if (fogMaterial.fogVolume) {
+			// \u{8BA1}\u{7B97}\u{5149}\u{7EBF}\u{4E0E}\u{96FE}\u{4F53}\u{7684}\u{4EA4}\u{70B9}\u{8DDD}\u{79BB}
+			float particleDist = intersectFogVolume(fogMaterial, rand(1));
 
-			// offset the distance so we don't run into issues with particles on the same surface
-			// as other objects
-			float particleDist = intersectFogVolume( fogMaterial, rand( 1 ) );
-			if ( particleDist + RAY_OFFSET < surfaceHit.dist ) {
-
-				surfaceHit.side = 1.0;
-				surfaceHit.faceNormal = normalize( - ray.direction );
-				surfaceHit.dist = particleDist;
-				return FOG_HIT;
-
+			// \u{5982}\u{679C}\u{4EA4}\u{70B9}\u{5728}\u{8868}\u{9762}\u{4EA4}\u{70B9}\u{4E4B}\u{524D}\u{FF0C}\u{4E14}\u{5927}\u{4E8E}\u{4E00}\u{4E2A}\u{5C0F}\u{7684}\u{504F}\u{79FB}\u{91CF}\u{FF0C}\u{8BA4}\u{4E3A}\u{662F}\u{96FE}\u{4F53}\u{4EA4}\u{70B9}
+			if (particleDist + RAY_OFFSET < surfaceHit.dist) {
+				surfaceHit.side = 1.0;  // \u{8BBE}\u{7F6E}\u{4EA4}\u{70B9}\u{7684}\u{9762}\u{671D}\u{5411}
+				surfaceHit.faceNormal = normalize(-ray.direction);  // \u{6CD5}\u{7EBF}\u{53CD}\u{5411}
+				surfaceHit.dist = particleDist;  // \u{66F4}\u{65B0}\u{4EA4}\u{70B9}\u{8DDD}\u{79BB}
+				return FOG_HIT;  // \u{8FD4}\u{56DE}\u{96FE}\u{4F53}\u{4EA4}\u{70B9}
 			}
-
 		}
 
 		#endif
 
-		if ( hit ) {
-
-			result = SURFACE_HIT;
-
+		// \u{5982}\u{679C}\u{5149}\u{7EBF}\u{4E0E}\u{7269}\u{4F53}\u{6709}\u{4EA4}\u{70B9}\u{FF0C}\u{66F4}\u{65B0}\u{7ED3}\u{679C}\u{4E3A}\u{8868}\u{9762}\u{4EA4}\u{70B9}
+		if (hit) {
+			result = SURFACE_HIT; 
 		}
 
 		return result;
-
 	}
+
 
 `;
 
@@ -4007,25 +3865,25 @@ class ProceduralEquirectTexture extends (0, _three.DataTexture) {
 }
 
 },{"three":"ktPTu","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"l9Mxp":[function(require,module,exports,__globalThis) {
+//通过自定义的 插值（interpolation） 方法来处理纹理采样
+//并在纹理周围使用 "clamping"（限制）的方式进行纹理的边界插值
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-// Material that tone maps a texture before performing interpolation to prevent
-// unexpected high values during texture stretching interpolation.
-// Emulates browser image stretching
 parcelHelpers.export(exports, "ClampedInterpolationMaterial", ()=>ClampedInterpolationMaterial);
 var _three = require("three");
 class ClampedInterpolationMaterial extends (0, _three.ShaderMaterial) {
+    // getter 和 setter 用于纹理和透明度控制
     get map() {
         return this.uniforms.map.value;
     }
-    set map(v) {
-        this.uniforms.map.value = v;
+    set map(value) {
+        this.uniforms.map.value = value;
     }
     get opacity() {
         return this.uniforms.opacity.value;
     }
-    set opacity(v) {
-        if (this.uniforms) this.uniforms.opacity.value = v;
+    set opacity(value) {
+        if (this.uniforms) this.uniforms.opacity.value = value;
     }
     constructor(params){
         super({
@@ -4038,65 +3896,45 @@ class ClampedInterpolationMaterial extends (0, _three.ShaderMaterial) {
                 }
             },
             vertexShader: /* glsl */ `
-				varying vec2 vUv;
-				void main() {
-
-					vUv = uv;
-					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-
-				}
-			`,
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
             fragmentShader: /* glsl */ `
-				uniform sampler2D map;
-				uniform float opacity;
-				varying vec2 vUv;
+                uniform sampler2D map;
+                uniform float opacity;
+                varying vec2 vUv;
 
-				vec4 clampedTexelFatch( sampler2D map, ivec2 px, int lod ) {
+                // \u{81EA}\u{5B9A}\u{4E49}\u{7684}\u{7EB9}\u{7406}\u{91C7}\u{6837}\u{51FD}\u{6570}
+                vec4 fetchClampedTexel(sampler2D tex, ivec2 px) {
+                    return texelFetch(tex, px, 0);
+                }
 
-					vec4 res = texelFetch( map, ivec2( px.x, px.y ), 0 );
+                void main() {
+                    vec2 textureSize = vec2(textureSize(map, 0));
+                    vec2 uvScaled = vUv * textureSize;
+                    vec2 pixelCoord = floor(uvScaled);        // \u{83B7}\u{53D6}\u{50CF}\u{7D20}\u{5750}\u{6807}
+                    vec2 pixelFraction = fract(uvScaled) - 0.5;  // \u{8BA1}\u{7B97}\u{5C0F}\u{6570}\u{90E8}\u{5206}\u{FF0C}\u{51B3}\u{5B9A}\u{63D2}\u{503C}\u{6743}\u{91CD}
 
-					#if defined( TONE_MAPPING )
+                    // \u{8BA1}\u{7B97}\u{76F8}\u{90BB}\u{50CF}\u{7D20}
+                    vec2 offset = step(0.0, pixelFraction); // \u{57FA}\u{4E8E}\u{5C0F}\u{6570}\u{90E8}\u{5206}\u{6765}\u{786E}\u{5B9A}\u{504F}\u{79FB}
+                    vec2 nextPixel = clamp(pixelCoord + offset, vec2(0.0), textureSize - 1.0);
 
-					res.xyz = toneMapping( res.xyz );
+                    // \u{8BA1}\u{7B97}\u{63D2}\u{503C}
+                    vec2 alpha = abs(pixelFraction);
+                    vec4 p1 = mix(fetchClampedTexel(map, ivec2(pixelCoord.x, pixelCoord.y)), fetchClampedTexel(map, ivec2(nextPixel.x, pixelCoord.y)), alpha.x);
+                    vec4 p2 = mix(fetchClampedTexel(map, ivec2(pixelCoord.x, nextPixel.y)), fetchClampedTexel(map, ivec2(nextPixel.x, nextPixel.y)), alpha.x);
 
-					#endif
-
-			  		return linearToOutputTexel( res );
-
-				}
-
-				void main() {
-
-					vec2 size = vec2( textureSize( map, 0 ) );
-					vec2 pxUv = vUv * size;
-					vec2 pxCurr = floor( pxUv );
-					vec2 pxFrac = fract( pxUv ) - 0.5;
-					vec2 pxOffset;
-					pxOffset.x = pxFrac.x > 0.0 ? 1.0 : - 1.0;
-					pxOffset.y = pxFrac.y > 0.0 ? 1.0 : - 1.0;
-
-					vec2 pxNext = clamp( pxOffset + pxCurr, vec2( 0.0 ), size - 1.0 );
-					vec2 alpha = abs( pxFrac );
-
-					vec4 p1 = mix(
-						clampedTexelFatch( map, ivec2( pxCurr.x, pxCurr.y ), 0 ),
-						clampedTexelFatch( map, ivec2( pxNext.x, pxCurr.y ), 0 ),
-						alpha.x
-					);
-
-					vec4 p2 = mix(
-						clampedTexelFatch( map, ivec2( pxCurr.x, pxNext.y ), 0 ),
-						clampedTexelFatch( map, ivec2( pxNext.x, pxNext.y ), 0 ),
-						alpha.x
-					);
-
-					gl_FragColor = mix( p1, p2, alpha.y );
-					gl_FragColor.a *= opacity;
-					#include <premultiplied_alpha_fragment>
-
-				}
-			`
+                    // \u{7EC4}\u{5408}\u{6700}\u{7EC8}\u{7684}\u{989C}\u{8272}\u{5E76}\u{5E94}\u{7528}\u{900F}\u{660E}\u{5EA6}
+                    gl_FragColor = mix(p1, p2, alpha.y);
+                    gl_FragColor.a *= opacity;
+                    #include <premultiplied_alpha_fragment>
+                }
+            `
         });
+        // 使用传入的参数进行配置
         this.setValues(params);
     }
 }
@@ -4389,108 +4227,80 @@ class DenoiseMaterial extends (0, _materialBaseJs.MaterialBase) {
                 }
             },
             vertexShader: /* glsl */ `
+                varying vec2 vUv;
 
-				varying vec2 vUv;
-
-				void main() {
-
-					vUv = uv;
-					gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-
-				}
-
-			`,
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
             fragmentShader: /* glsl */ `
+                uniform sampler2D map;
+                uniform float sigma;
+                uniform float threshold;
+                uniform float kSigma;
+                uniform float opacity;
+                varying vec2 vUv;
 
-				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-				//  Copyright (c) 2018-2019 Michele Morrone
-				//  All rights reserved.
-				//
-				//  https://michelemorrone.eu - https://BrutPitt.com
-				//
-				//  me@michelemorrone.eu - brutpitt@gmail.com
-				//  twitter: @BrutPitt - github: BrutPitt
-				//
-				//  https://github.com/BrutPitt/glslSmartDeNoise/
-				//
-				//  This software is distributed under the terms of the BSD 2-Clause license
-				//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                #define INV_SQRT_OF_2PI 0.3989422804014327
+                #define INV_PI 0.3183098861837907
 
-				uniform sampler2D map;
+                // \u{667A}\u{80FD}\u{53BB}\u{566A}\u{51FD}\u{6570}
+                vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold) {
 
-				uniform float sigma;
-				uniform float threshold;
-				uniform float kSigma;
-				uniform float opacity;
+                    // \u{8BA1}\u{7B97}\u{6A21}\u{7CCA}\u{534A}\u{5F84}
+                    float radius = round(kSigma * sigma);
+                    float radQ = radius * radius;
 
-				varying vec2 vUv;
+                    // \u{9AD8}\u{65AF}\u{5206}\u{5E03}\u{76F8}\u{5173}\u{5E38}\u{91CF}
+                    float invSigmaQx2 = 0.5 / (sigma * sigma);
+                    float invSigmaQx2PI = INV_PI * invSigmaQx2;
 
-				#define INV_SQRT_OF_2PI 0.39894228040143267793994605993439
-				#define INV_PI 0.31830988618379067153776752674503
+                    // \u{8FB9}\u{7F18}\u{4FDD}\u{6301}\u{53C2}\u{6570}
+                    float invThresholdSqx2 = 0.5 / (threshold * threshold);
+                    float invThresholdSqrt2PI = INV_SQRT_OF_2PI / threshold;
 
-				// Parameters:
-				//	 sampler2D tex	 - sampler image / texture
-				//	 vec2 uv		   - actual fragment coord
-				//	 float sigma  >  0 - sigma Standard Deviation
-				//	 float kSigma >= 0 - sigma coefficient
-				//		 kSigma * sigma  -->  radius of the circular kernel
-				//	 float threshold   - edge sharpening threshold
-				vec4 smartDeNoise( sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold ) {
+                    vec4 centralPixel = texture2D(tex, uv);  // \u{5F53}\u{524D}\u{50CF}\u{7D20}
+                    centralPixel.rgb *= centralPixel.a;  // \u{4F7F}\u{7528} alpha \u{901A}\u{9053}\u{8C03}\u{6574}\u{989C}\u{8272}
 
-					float radius = round( kSigma * sigma );
-					float radQ = radius * radius;
+                    float zBuffer = 0.0;
+                    vec4 accumulatedColor = vec4(0.0);
+                    vec2 textureSize = vec2(textureSize(tex, 0));  // \u{83B7}\u{53D6}\u{7EB9}\u{7406}\u{5927}\u{5C0F}
 
-					float invSigmaQx2 = 0.5 / ( sigma * sigma );
-					float invSigmaQx2PI = INV_PI * invSigmaQx2;
+                    // \u{904D}\u{5386}\u{90BB}\u{57DF}\u{50CF}\u{7D20}
+                    for (float dx = -radius; dx <= radius; dx++) {
+                        float pt = sqrt(radQ - dx * dx);
+                        for (float dy = -pt; dy <= pt; dy++) {
 
-					float invThresholdSqx2 = 0.5 / ( threshold * threshold );
-					float invThresholdSqrt2PI = INV_SQRT_OF_2PI / threshold;
+                            // \u{8BA1}\u{7B97}\u{9AD8}\u{65AF}\u{6743}\u{91CD}
+                            float blurFactor = exp(-(dx * dx + dy * dy) * invSigmaQx2) * invSigmaQx2PI;
 
-					vec4 centrPx = texture2D( tex, uv );
-					centrPx.rgb *= centrPx.a;
+                            vec4 neighborPixel = texture2D(tex, uv + vec2(dx, dy) / textureSize);
+                            neighborPixel.rgb *= neighborPixel.a;
 
-					float zBuff = 0.0;
-					vec4 aBuff = vec4( 0.0 );
-					vec2 size = vec2( textureSize( tex, 0 ) );
+                            // \u{8BA1}\u{7B97}\u{4E0E}\u{5F53}\u{524D}\u{50CF}\u{7D20}\u{7684}\u{5DEE}\u{5F02}\u{5E76}\u{52A0}\u{6743}
+                            vec4 colorDifference = neighborPixel - centralPixel;
+                            float deltaFactor = exp(-(colorDifference.rgba * colorDifference.rgba) * invThresholdSqx2) * invThresholdSqrt2PI * blurFactor;
 
-					vec2 d;
-					for ( d.x = - radius; d.x <= radius; d.x ++ ) {
+                            zBuffer += deltaFactor;
+                            accumulatedColor += deltaFactor * neighborPixel;
+                        }
+                    }
 
-						float pt = sqrt( radQ - d.x * d.x );
+                    return accumulatedColor / zBuffer;  // \u{8FD4}\u{56DE}\u{53BB}\u{566A}\u{540E}\u{7684}\u{989C}\u{8272}
+                }
 
-						for ( d.y = - pt; d.y <= pt; d.y ++ ) {
+                void main() {
+                    // \u{8C03}\u{7528}\u{667A}\u{80FD}\u{53BB}\u{566A}\u{51FD}\u{6570}
+                    gl_FragColor = smartDeNoise(map, vUv, sigma, kSigma, threshold);
 
-							float blurFactor = exp( - dot( d, d ) * invSigmaQx2 ) * invSigmaQx2PI;
+                    #include <tonemapping_fragment>
+                    #include <colorspace_fragment>
+                    #include <premultiplied_alpha_fragment>
 
-							vec4 walkPx = texture2D( tex, uv + d / size );
-							walkPx.rgb *= walkPx.a;
-
-							vec4 dC = walkPx - centrPx;
-							float deltaFactor = exp( - dot( dC.rgba, dC.rgba ) * invThresholdSqx2 ) * invThresholdSqrt2PI * blurFactor;
-
-							zBuff += deltaFactor;
-							aBuff += deltaFactor * walkPx;
-
-						}
-
-					}
-
-					return aBuff / zBuff;
-
-				}
-
-				void main() {
-
-					gl_FragColor = smartDeNoise( map, vec2( vUv.x, vUv.y ), sigma, kSigma, threshold );
-					#include <tonemapping_fragment>
-					#include <colorspace_fragment>
-					#include <premultiplied_alpha_fragment>
-
-					gl_FragColor.a *= opacity;
-
-				}
-
-			`
+                    gl_FragColor.a *= opacity;  // \u{5E94}\u{7528}\u{900F}\u{660E}\u{5EA6}
+                }
+            `
         });
         this.setValues(parameters);
     }

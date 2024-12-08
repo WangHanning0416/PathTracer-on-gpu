@@ -1,7 +1,6 @@
 import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 import { StratifiedSamplerCombined } from './stratified/StratifiedSamplerCombined.js';
 
-// https://stackoverflow.com/questions/424292/seedable-javascript-random-number-generator
 class RandomGenerator {
 
 	constructor( seed = 0 ) {

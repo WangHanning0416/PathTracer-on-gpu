@@ -584,14 +584,8 @@ parcelHelpers.exportAll(_sheenFunctionsGlslJs, exports);
 
 },{"./bsdf_functions.glsl.js":"fBwY0","./fog_functions.glsl.js":"kNg3Z","./ggx_functions.glsl.js":"a8zBW","./iridescence_functions.glsl.js":"4DY7I","./sheen_functions.glsl.js":"kD1qC","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"fBwY0":[function(require,module,exports,__globalThis) {
 /*
-wi     : incident vector or light vector (pointing toward the light)
-wo     : outgoing vector or view vector (pointing towards the camera)
-wh     : computed half vector from wo and wi
-Eval   : Get the color and pdf for a direction
-Sample : Get the direction, color, and pdf for a sample
-eta    : Greek character used to denote the "ratio of ior"
-f0     : Amount of light reflected when looking at a surface head on - "fresnel 0"
-f90    : Amount of light reflected at grazing angles
+wi     : 入射光
+wo     : 出射光
 */ var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "bsdf_functions", ()=>bsdf_functions);
@@ -599,11 +593,8 @@ const bsdf_functions = /* glsl */ `
 
 	// diffuse
 	float diffuseEval( vec3 wo, vec3 wi, vec3 wh, SurfaceRecord surf, inout vec3 color ) {
-
-		// https://schuttejoe.github.io/post/disneybsdf/
 		float fl = schlickFresnel( wi.z, 0.0 );
 		float fv = schlickFresnel( wo.z, 0.0 );
-
 		float metalFactor = ( 1.0 - surf.metalness );
 		float transFactor = ( 1.0 - surf.transmission );
 		
@@ -611,21 +602,18 @@ const bsdf_functions = /* glsl */ `
 		float retro = rr * ( fl + fv + fl * fv * ( rr - 1.0f ) );
 		float lambert = ( 1.0f - 0.5f * fl ) * ( 1.0f - 0.5f * fv );
 
-		// TODO: subsurface approx?
-
-		// float F = evaluateFresnelWeight( dot( wo, wh ), surf.eta, surf.f0 );
 		float F = disneyFresnel( wo, wi, wh, surf.f0, surf.eta, surf.metalness );
 		color = ( 1.0 - F ) * transFactor * metalFactor * wi.z * surf.color * ( retro + lambert ) / PI;
 
-		return wi.z / PI;
+		return wi.z / PI;  
 
 	}
 
 	vec3 diffuseDirection( vec3 wo, SurfaceRecord surf ) {
-
+       
 		vec3 lightDirection = sampleSphere( rand2( 11 ) );
-		lightDirection.z += 1.0;
-		lightDirection = normalize( lightDirection );
+		lightDirection.z += 1.0;     //\u{4FDD}\u{8BC1}\u{70B9}\u{90FD}\u{843D}\u{5728}z\u{6B63}\u{534A}\u{8F74}\u{4E0A}
+		lightDirection = normalize( lightDirection );  //\u{6B63}\u{5219}\u{5316}\u{FF0C}\u{4FDD}\u{8BC1}\u{90FD}\u{843D}\u{5728}\u{4E0A}\u{534A}\u{7403}\u{4E0A}
 
 		return lightDirection;
 
@@ -634,7 +622,6 @@ const bsdf_functions = /* glsl */ `
 	// specular
 	float specularEval( vec3 wo, vec3 wi, vec3 wh, SurfaceRecord surf, inout vec3 color ) {
 
-		// if roughness is set to 0 then D === NaN which results in black pixels
 		float metalness = surf.metalness;
 		float roughness = surf.filteredRoughness;
 
@@ -648,8 +635,6 @@ const bsdf_functions = /* glsl */ `
 		vec3 iridescenceF = evalIridescence( 1.0, surf.iridescenceIor, dot( wi, wh ), surf.iridescenceThickness, f0Color );
 		F = mix( F, iridescenceF,  surf.iridescence );
 
-		// PDF
-		// See 14.1.1 Microfacet BxDFs in https://www.pbr-book.org/
 		float incidentTheta = acos( wo.z );
 		float G = ggxShadowMaskG2( wi, wo, roughness );
 		float D = ggxDistribution( wh, roughness );
@@ -663,81 +648,17 @@ const bsdf_functions = /* glsl */ `
 
 	vec3 specularDirection( vec3 wo, SurfaceRecord surf ) {
 
-		// sample ggx vndf distribution which gives a new normal
 		float roughness = surf.filteredRoughness;
-		vec3 halfVector = ggxDirection(
-			wo,
-			vec2( roughness ),
-			rand2( 12 )
-		);
-
-		// apply to new ray by reflecting off the new normal
+		vec3 halfVector = ggxDirection(wo,vec2( roughness ),rand2( 12 ));
+        //\u{6CE8}\u{610F}\u{8FD9}\u{91CC}\u{7531}\u{4E8E}\u{8868}\u{9762}\u{5E76}\u{975E}\u{7EDD}\u{5BF9}\u{5149}\u{5149}\u{6ED1}\u{FF0C}\u{8981}\u{7528}ggx\u{6765}\u{751F}\u{6210}\u{65B0}\u{7684}\u{65B9}\u{5411}\u{800C}\u{4E0D}\u{80FD}\u{76F4}\u{63A5}\u{7528}wi
 		return - reflect( wo, halfVector );
 
 	}
-
-
-	// transmission
-	/*
-	float transmissionEval( vec3 wo, vec3 wi, vec3 wh, SurfaceRecord surf, inout vec3 color ) {
-
-		// See section 4.2 in https://www.cs.cornell.edu/~srm/publications/EGSR07-btdf.pdf
-
-		float filteredRoughness = surf.filteredRoughness;
-		float eta = surf.eta;
-		bool frontFace = surf.frontFace;
-		bool thinFilm = surf.thinFilm;
-
-		color = surf.transmission * surf.color;
-
-		float denom = pow( eta * dot( wi, wh ) + dot( wo, wh ), 2.0 );
-		return ggxPDF( wo, wh, filteredRoughness ) / denom;
-
-	}
-
-	vec3 transmissionDirection( vec3 wo, SurfaceRecord surf ) {
-
-		float filteredRoughness = surf.filteredRoughness;
-		float eta = surf.eta;
-		bool frontFace = surf.frontFace;
-
-		// sample ggx vndf distribution which gives a new normal
-		vec3 halfVector = ggxDirection(
-			wo,
-			vec2( filteredRoughness ),
-			rand2( 13 )
-		);
-
-		vec3 lightDirection = refract( normalize( - wo ), halfVector, eta );
-		if ( surf.thinFilm ) {
-
-			lightDirection = - refract( normalize( - lightDirection ), - vec3( 0.0, 0.0, 1.0 ), 1.0 / eta );
-
-		}
-
-		return normalize( lightDirection );
-
-	}
-	*/
-
-	// TODO: This is just using a basic cosine-weighted specular distribution with an
-	// incorrect PDF value at the moment. Update it to correctly use a GGX distribution
+    
+	//transimission
 	float transmissionEval( vec3 wo, vec3 wi, vec3 wh, SurfaceRecord surf, inout vec3 color ) {
 
 		color = surf.transmission * surf.color;
-
-		// PDF
-		// float F = evaluateFresnelWeight( dot( wo, wh ), surf.eta, surf.f0 );
-		// float F = disneyFresnel( wo, wi, wh, surf.f0, surf.eta, surf.metalness );
-		// if ( F >= 1.0 ) {
-
-		// 	return 0.0;
-
-		// }
-
-		// return 1.0 / ( 1.0 - F );
-
-		// reverted to previous to transmission. The above was causing black pixels
 		float eta = surf.eta;
 		float f0 = surf.f0;
 		float cosTheta = min( wo.z, 1.0 );
@@ -745,26 +666,19 @@ const bsdf_functions = /* glsl */ `
 		float reflectance = schlickFresnel( cosTheta, f0 );
 		bool cannotRefract = eta * sinTheta > 1.0;
 		if ( cannotRefract ) {
-
 			return 0.0;
-
 		}
-
 		return 1.0 / ( 1.0 - reflectance );
-
 	}
 
 	vec3 transmissionDirection( vec3 wo, SurfaceRecord surf ) {
-
 		float roughness = surf.filteredRoughness;
 		float eta = surf.eta;
 		vec3 halfVector = normalize( vec3( 0.0, 0.0, 1.0 ) + sampleSphere( rand2( 13 ) ) * roughness );
 		vec3 lightDirection = refract( normalize( - wo ), halfVector, eta );
 
 		if ( surf.thinFilm ) {
-
 			lightDirection = - refract( normalize( - lightDirection ), - vec3( 0.0, 0.0, 1.0 ), 1.0 / eta );
-
 		}
 		return normalize( lightDirection );
 
@@ -786,15 +700,12 @@ const bsdf_functions = /* glsl */ `
 		float fClearcoat = F * D * G / ( 4.0 * abs( wi.z * wo.z ) );
 		color = color * ( 1.0 - surf.clearcoat * F ) + fClearcoat * surf.clearcoat * wi.z;
 
-		// PDF
-		// See equation (27) in http://jcgt.org/published/0003/02/03/
 		return ggxPDF( wo, wh, roughness ) / ( 4.0 * dot( wi, wh ) );
 
 	}
 
 	vec3 clearcoatDirection( vec3 wo, SurfaceRecord surf ) {
 
-		// sample ggx vndf distribution which gives a new normal
 		float roughness = surf.filteredClearcoatRoughness;
 		vec3 halfVector = ggxDirection(
 			wo,
@@ -802,7 +713,6 @@ const bsdf_functions = /* glsl */ `
 			rand2( 14 )
 		);
 
-		// apply to new ray by reflecting off the new normal
 		return - reflect( wo, halfVector );
 
 	}
@@ -817,7 +727,6 @@ const bsdf_functions = /* glsl */ `
 		float D = velvetD( cosThetaH, surf.sheenRoughness );
 		float G = velvetG( cosThetaO, cosThetaI, surf.sheenRoughness );
 
-		// See equation (1) in http://www.aconty.com/pdf/s2017_pbs_imageworks_sheen.pdf
 		vec3 color = surf.sheenColor;
 		color *= D * G / ( 4.0 * abs( cosThetaO * cosThetaI ) );
 		color *= wi.z;
@@ -897,19 +806,11 @@ const bsdf_functions = /* glsl */ `
 
 		// clearcoat
 		if ( clearcoatWi.z >= 0.0 && clearcoatWeight > 0.0 ) {
-
 			vec3 clearcoatHalfVector = getHalfVector( clearcoatWo, clearcoatWi );
 			cpdf = clearcoatEval( clearcoatWo, clearcoatWi, clearcoatHalfVector, surf, color );
-
 		}
 
-		float pdf =
-			dpdf * diffuseWeight
-			+ spdf * specularWeight
-			+ tpdf * transmissionWeight
-			+ cpdf * clearcoatWeight;
-
-		// retrieve specular rays for the shadows flag
+		float pdf =dpdf * diffuseWeight + spdf * specularWeight + tpdf * transmissionWeight + cpdf * clearcoatWeight;
 		specularPdf = spdf * specularWeight + cpdf * clearcoatWeight;
 
 		return pdf;
@@ -944,7 +845,7 @@ const bsdf_functions = /* glsl */ `
 	}
 
 	ScatterRecord bsdfSample( vec3 worldWo, SurfaceRecord surf ) {
-        //\u{5982}\u{679C}\u{662F}\u{4E00}\u{4E2A}\u{4F53}\u{79EF}\u{7C92}\u{5B50}
+        //\u{4F53}\u{79EF}\u{7C92}\u{5B50}
 		if ( surf.volumeParticle ) {
 			ScatterRecord sampleRec;
 			sampleRec.specularPdf = 0.0;
@@ -1048,49 +949,26 @@ var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "ggx_functions", ()=>ggx_functions);
 const ggx_functions = /* glsl */ `
-
-	// The GGX functions provide sampling and distribution information for normals as output so
-	// in order to get probability of scatter direction the half vector must be computed and provided.
-	// [0] https://www.cs.cornell.edu/~srm/publications/EGSR07-btdf.pdf
-	// [1] https://hal.archives-ouvertes.fr/hal-01509746/document
-	// [2] http://jcgt.org/published/0007/04/01/
-	// [4] http://jcgt.org/published/0003/02/03/
-
-	// trowbridge-reitz === GGX === GTR
-
 	vec3 ggxDirection( vec3 incidentDir, vec2 roughness, vec2 uv ) {
-
-		// TODO: try GGXVNDF implementation from reference [2], here. Needs to update ggxDistribution
-		// function below, as well
-
-		// Implementation from reference [1]
-		// stretch view
 		vec3 V = normalize( vec3( roughness * incidentDir.xy, incidentDir.z ) );
 
-		// orthonormal basis
 		vec3 T1 = ( V.z < 0.9999 ) ? normalize( cross( V, vec3( 0.0, 0.0, 1.0 ) ) ) : vec3( 1.0, 0.0, 0.0 );
 		vec3 T2 = cross( T1, V );
 
-		// sample point with polar coordinates (r, phi)
 		float a = 1.0 / ( 1.0 + V.z );
 		float r = sqrt( uv.x );
 		float phi = ( uv.y < a ) ? uv.y / a * PI : PI + ( uv.y - a ) / ( 1.0 - a ) * PI;
 		float P1 = r * cos( phi );
 		float P2 = r * sin( phi ) * ( ( uv.y < a ) ? 1.0 : V.z );
 
-		// compute normal
 		vec3 N = P1 * T1 + P2 * T2 + V * sqrt( max( 0.0, 1.0 - P1 * P1 - P2 * P2 ) );
 
-		// unstretch
 		N = normalize( vec3( roughness * N.xy, max( 0.0, N.z ) ) );
 
 		return N;
 
 	}
 
-	// Below are PDF and related functions for use in a Monte Carlo path tracer
-	// as specified in Appendix B of the following paper
-	// See equation (34) from reference [0]
 	float ggxLamda( float theta, float roughness ) {
 
 		float tanTheta = tan( theta );
@@ -1102,14 +980,12 @@ const ggx_functions = /* glsl */ `
 
 	}
 
-	// See equation (34) from reference [0]
 	float ggxShadowMaskG1( float theta, float roughness ) {
 
 		return 1.0 / ( 1.0 + ggxLamda( theta, roughness ) );
 
 	}
 
-	// See equation (125) from reference [4]
 	float ggxShadowMaskG2( vec3 wi, vec3 wo, float roughness ) {
 
 		float incidentTheta = acos( wi.z );
@@ -1118,7 +994,6 @@ const ggx_functions = /* glsl */ `
 
 	}
 
-	// See equation (33) from reference [0]
 	float ggxDistribution( vec3 halfVector, float roughness ) {
 
 		float a2 = roughness * roughness;
@@ -1137,7 +1012,6 @@ const ggx_functions = /* glsl */ `
 
 	}
 
-	// See equation (3) from reference [2]
 	float ggxPDF( vec3 wi, vec3 halfVector, float roughness ) {
 
 		float incidentTheta = acos( wi.z );
@@ -1156,7 +1030,7 @@ parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "iridescence_functions", ()=>iridescence_functions);
 const iridescence_functions = /* glsl */ `
 
-	// XYZ to sRGB color space
+	// XYZ \u{5230} sRGB \u{989C}\u{8272}\u{7A7A}\u{95F4}\u{7684}\u{8F6C}\u{6362}\u{77E9}\u{9635}
 	const mat3 XYZ_TO_REC709 = mat3(
 		3.2404542, -0.9692660,  0.0556434,
 		-1.5371385,  1.8760108, -0.2040259,
@@ -1164,130 +1038,100 @@ const iridescence_functions = /* glsl */ `
 	);
 
 	vec3 fresnel0ToIor( vec3 fresnel0 ) {
-
 		vec3 sqrtF0 = sqrt( fresnel0 );
 		return ( vec3( 1.0 ) + sqrtF0 ) / ( vec3( 1.0 ) - sqrtF0 );
-
 	}
 
-	// Conversion FO/IOR
 	vec3 iorToFresnel0( vec3 transmittedIor, float incidentIor ) {
-
 		return square( ( transmittedIor - vec3( incidentIor ) ) / ( transmittedIor + vec3( incidentIor ) ) );
-
 	}
 
-	// ior is a value between 1.0 and 3.0. 1.0 is air interface
 	float iorToFresnel0( float transmittedIor, float incidentIor ) {
-
 		return square( ( transmittedIor - incidentIor ) / ( transmittedIor + incidentIor ) );
-
 	}
 
-	// Fresnel equations for dielectric/dielectric interfaces. See https://belcour.github.io/blog/research/2017/05/01/brdf-thin-film.html
+	// OPD \u{4E3A}\u{5149}\u{7A0B}\u{5DEE}\u{FF0C}shift \u{4E3A}\u{76F8}\u{4F4D}\u{504F}\u{79FB}\u{91CF}
 	vec3 evalSensitivity( float OPD, vec3 shift ) {
-
-		float phase = 2.0 * PI * OPD * 1.0e-9;
+		float phase = 2.0 * PI * OPD * 1.0e-9;// \u{8BA1}\u{7B97}\u{76F8}\u{4F4D}
 
 		vec3 val = vec3( 5.4856e-13, 4.4201e-13, 5.2481e-13 );
 		vec3 pos = vec3( 1.6810e+06, 1.7953e+06, 2.2084e+06 );
 		vec3 var = vec3( 4.3278e+09, 9.3046e+09, 6.6121e+09 );
 
+		// \u{8BA1}\u{7B97}\u{5149}\u{8C31}\u{7684} XYZ \u{503C}\u{FF0C}\u{5305}\u{542B}\u{4E86}\u{4E0E}\u{76F8}\u{4F4D}\u{76F8}\u{5173}\u{7684}\u{5E45}\u{5EA6}\u{53D8}\u{5316}
 		vec3 xyz = val * sqrt( 2.0 * PI * var ) * cos( pos * phase + shift ) * exp( - square( phase ) * var );
 		xyz.x += 9.7470e-14 * sqrt( 2.0 * PI * 4.5282e+09 ) * cos( 2.2399e+06 * phase + shift[ 0 ] ) * exp( - 4.5282e+09 * square( phase ) );
 		xyz /= 1.0685e-7;
 
+		// \u{5C06} XYZ \u{8F6C}\u{6362}\u{4E3A} sRGB \u{989C}\u{8272}\u{7A7A}\u{95F4}
 		vec3 srgb = XYZ_TO_REC709 * xyz;
 		return srgb;
-
 	}
 
-	// See Section 4. Analytic Spectral Integration, A Practical Extension to Microfacet Theory for the Modeling of Varying Iridescence, https://hal.archives-ouvertes.fr/hal-01518344/document
 	vec3 evalIridescence( float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0 ) {
-
 		vec3 I;
 
-		// Force iridescenceIor -> outsideIOR when thinFilmThickness -> 0.0
+		// \u{901A}\u{8FC7}\u{6DF7}\u{5408}\u{5916}\u{90E8}\u{6298}\u{5C04}\u{7387}\u{548C}\u{8584}\u{819C}\u{6298}\u{5C04}\u{7387}\u{6765}\u{8C03}\u{6574} iridescenceIor
+		// \u{901A}\u{8FC7} smoothstep \u{51FD}\u{6570}\u{5E73}\u{6ED1}\u{8FC7}\u{6E21}
 		float iridescenceIor = mix( outsideIOR, eta2, smoothstep( 0.0, 0.03, thinFilmThickness ) );
 
-		// Evaluate the cosTheta on the base layer (Snell law)
 		float sinTheta2Sq = square( outsideIOR / iridescenceIor ) * ( 1.0 - square( cosTheta1 ) );
 
-		// Handle TIR:
 		float cosTheta2Sq = 1.0 - sinTheta2Sq;
 		if ( cosTheta2Sq < 0.0 ) {
-
+			// \u{5982}\u{679C}\u{53D1}\u{751F}\u{5168}\u{5185}\u{53CD}\u{5C04}\u{FF0C}\u{8FD4}\u{56DE}\u{767D}\u{8272}
 			return vec3( 1.0 );
-
 		}
 
 		float cosTheta2 = sqrt( cosTheta2Sq );
 
-		// First interface
 		float R0 = iorToFresnel0( iridescenceIor, outsideIOR );
 		float R12 = schlickFresnel( cosTheta1, R0 );
 		float R21 = R12;
 		float T121 = 1.0 - R12;
 		float phi12 = 0.0;
 		if ( iridescenceIor < outsideIOR ) {
-
+			// \u{5982}\u{679C}\u{6298}\u{5C04}\u{7387}\u{5C0F}\u{4E8E}\u{5916}\u{90E8}\u{6298}\u{5C04}\u{7387}\u{FF0C}\u{53CD}\u{76F8}\u{4F4D}
 			phi12 = PI;
-
 		}
 
 		float phi21 = PI - phi12;
 
-		// Second interface
-		vec3 baseIOR = fresnel0ToIor( clamp( baseF0, 0.0, 0.9999 ) ); // guard against 1.0
+		vec3 baseIOR = fresnel0ToIor( clamp( baseF0, 0.0, 0.9999 ) ); // \u{9632}\u{6B62} Fresnel \u{53CD}\u{5C04}\u{7387}\u{8FBE}\u{5230} 1.0
 		vec3 R1 = iorToFresnel0( baseIOR, iridescenceIor );
 		vec3 R23 = schlickFresnel( cosTheta2, R1 );
 		vec3 phi23 = vec3( 0.0 );
 		if ( baseIOR[0] < iridescenceIor ) {
-
 			phi23[ 0 ] = PI;
-
 		}
-
 		if ( baseIOR[1] < iridescenceIor ) {
-
 			phi23[ 1 ] = PI;
-
 		}
-
 		if ( baseIOR[2] < iridescenceIor ) {
-
 			phi23[ 2 ] = PI;
-
 		}
 
-		// Phase shift
 		float OPD = 2.0 * iridescenceIor * thinFilmThickness * cosTheta2;
 		vec3 phi = vec3( phi21 ) + phi23;
 
-		// Compound terms
 		vec3 R123 = clamp( R12 * R23, 1e-5, 0.9999 );
 		vec3 r123 = sqrt( R123 );
 		vec3 Rs = square( T121 ) * R23 / ( vec3( 1.0 ) - R123 );
 
-		// Reflectance term for m = 0 (DC term amplitude)
 		vec3 C0 = R12 + Rs;
 		I = C0;
 
-		// Reflectance term for m > 0 (pairs of diracs)
 		vec3 Cm = Rs - T121;
 		for ( int m = 1; m <= 2; ++ m ) {
-
+			// \u{9012}\u{5F52}\u{8BA1}\u{7B97}\u{6BCF}\u{4E2A}\u{9AD8}\u{9636}\u{9879}
 			Cm *= r123;
 			vec3 Sm = 2.0 * evalSensitivity( float( m ) * OPD, float( m ) * phi );
 			I += Cm * Sm;
-
 		}
 
-		// Since out of gamut colors might be produced, negative color values are clamped to 0.
+		// \u{5982}\u{679C}\u{4EA7}\u{751F}\u{4E86}\u{8272}\u{5F69}\u{8D85}\u{51FA}\u{8272}\u{57DF}\u{7684}\u{60C5}\u{51B5}\u{FF0C}\u{5C06}\u{8D1F}\u{503C}\u{4FEE}\u{6B63}\u{4E3A} 0
 		return max( I, vec3( 0.0 ) );
-
 	}
-
 `;
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"kD1qC":[function(require,module,exports,__globalThis) {
@@ -1334,15 +1178,11 @@ const sheen_functions = /* glsl */ `
 		return a / ( 1.0 + b * pow( abs( x ), c ) ) + d * x + e;
 
 	}
-
-	// See equation (3) in http://www.aconty.com/pdf/s2017_pbs_imageworks_sheen.pdf
 	float velvetLambda( float cosTheta, float alpha ) {
 
 		return abs( cosTheta ) < 0.5 ? exp( velvetL( cosTheta, alpha ) ) : exp( 2.0 * velvetL( 0.5, alpha ) - velvetL( 1.0 - cosTheta, alpha ) );
 
 	}
-
-	// See Section 3, Shadowing Term, in http://www.aconty.com/pdf/s2017_pbs_imageworks_sheen.pdf
 	float velvetG( float cosThetaO, float cosThetaI, float roughness ) {
 
 		float alpha = max( roughness, 0.07 );
@@ -1369,28 +1209,17 @@ const sheen_functions = /* glsl */ `
 		alpha = alpha * alpha;
 
 		float maxSheenColor = max( max( surf.sheenColor.r, surf.sheenColor.g ), surf.sheenColor.b );
-
 		float eWo = directionalAlbedoSheen( saturateCos( wo.z ), alpha );
 		float eWi = directionalAlbedoSheen( saturateCos( wi.z ), alpha );
-
 		return min( 1.0 - maxSheenColor * eWo, 1.0 - maxSheenColor * eWi );
-
 	}
-
-	// See Section 5, Layering, in http://www.aconty.com/pdf/s2017_pbs_imageworks_sheen.pdf
 	float sheenAlbedoScaling( vec3 wo, SurfaceRecord surf ) {
-
 		float alpha = max( surf.sheenRoughness, 0.07 );
 		alpha = alpha * alpha;
-
 		float maxSheenColor = max( max( surf.sheenColor.r, surf.sheenColor.g ), surf.sheenColor.b );
-
 		float eWo = directionalAlbedoSheen( saturateCos( wo.z ), alpha );
-
 		return 1.0 - maxSheenColor * eWo;
-
 	}
-
 `;
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}]},[], null, "parcelRequire94c2")

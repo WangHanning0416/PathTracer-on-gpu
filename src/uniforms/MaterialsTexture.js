@@ -140,11 +140,6 @@ export class MaterialsTexture extends DataTexture {
 		}
 
 		const floatArray = image.data;
-
-		// on some devices (Google Pixel 6) the "floatBitsToInt" function does not work correctly so we
-		// can't encode texture ids that way.
-		// const intArray = new Int32Array( floatArray.buffer );
-
 		features.reset();
 		for ( let i = 0, l = materials.length; i < l; i ++ ) {
 

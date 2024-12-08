@@ -1,14 +1,7 @@
 export const attenuate_hit_function = /* glsl */`
 
-	// step through multiple surface hits and accumulate color attenuation based on transmissive surfaces
-	// returns true if a solid surface was hit
-	bool attenuateHit(
-		RenderState state,
-		Ray ray, float rayDist,
-		out vec3 color
-	) {
-
-		// store the original bounce index so we can reset it after
+	bool attenuateHit(RenderState state,Ray ray, float rayDist,out vec3 color) 
+	{
 		uint originalBounceIndex = sobolBounceIndex;
 
 		int traversals = state.traversals;
@@ -18,7 +11,6 @@ export const attenuate_hit_function = /* glsl */`
 
 		vec3 startPoint = ray.origin;
 
-		// hit results
 		SurfaceHit surfaceHit;
 
 		color = vec3( 1.0 );
@@ -45,14 +37,10 @@ export const attenuate_hit_function = /* glsl */`
 
 				}
 
-				// TODO: attenuate the contribution based on the PDF of the resulting ray including refraction values
-				// Should be able to work using the material BSDF functions which will take into account specularity, etc.
-				// TODO: should we account for emissive surfaces here?
 
 				uint materialIndex = uTexelFetch1D( materialIndexAttribute, surfaceHit.faceIndices.x ).r;
 				Material material = readMaterialInfo( materials, materialIndex );
 
-				// adjust the ray to the new surface
 				bool isEntering = surfaceHit.side == 1.0;
 				ray.origin = stepRayOrigin( ray.origin, ray.direction, - surfaceHit.faceNormal, surfaceHit.dist );
 
@@ -125,30 +113,19 @@ export const attenuate_hit_function = /* glsl */`
 				float transmissionFactor = ( 1.0 - metalness ) * transmission;
 				if (
 					transmissionFactor < rand( 9 ) && ! (
-						// material sidedness
 						material.side != 0.0 && surfaceHit.side == material.side
-
-						// alpha test
 						|| useAlphaTest && albedo.a < alphaTest
-
-						// opacity
 						|| material.transparent && ! useAlphaTest && albedo.a < rand( 10 )
 					)
 				) {
-
 					result = true;
 					break;
-
 				}
 
 				if ( surfaceHit.side == 1.0 && isEntering ) {
-
-					// only attenuate by surface color on the way in
 					color *= mix( vec3( 1.0 ), albedo.rgb, transmissionFactor );
-
-				} else if ( surfaceHit.side == - 1.0 ) {
-
-					// attenuate by medium once we hit the opposite side of the model
+				} 
+				else if ( surfaceHit.side == - 1.0 ) {
 					color *= transmissionAttenuation( surfaceHit.dist, material.attenuationColor, material.attenuationDistance );
 
 				}
@@ -169,11 +146,8 @@ export const attenuate_hit_function = /* glsl */`
 			}
 
 		}
-
-		// reset the bounce index
 		sobolBounceIndex = originalBounceIndex;
 		return result;
-
 	}
 
 `;

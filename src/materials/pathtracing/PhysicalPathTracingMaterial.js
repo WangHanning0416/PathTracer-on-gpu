@@ -30,31 +30,38 @@ export class PhysicalPathTracingMaterial extends MaterialBase {
 
 	onBeforeRender() {
 
-		this.setDefine('FEATURE_DOF', this.physicalCamera.bokehSize === 0 ? 0 : 1);
-		this.setDefine('FEATURE_BACKGROUND_MAP', this.backgroundMap ? 1 : 0);
-		this.setDefine('FEATURE_FOG', this.materials.features.isUsed('FOG') ? 1 : 0);
+		this.setDefine( 'FEATURE_DOF', this.physicalCamera.bokehSize === 0 ? 0 : 1 );
+		this.setDefine( 'FEATURE_BACKGROUND_MAP', this.backgroundMap ? 1 : 0 );
+		this.setDefine( 'FEATURE_FOG', this.materials.features.isUsed( 'FOG' ) ? 1 : 0 );
 
 	}
 
-	constructor(parameters) {
-		super({
+	constructor( parameters ) {
+
+		super( {
+
 			transparent: true,
 			depthWrite: false,
+
 			defines: {
 				FEATURE_MIS: 1,
 				FEATURE_RUSSIAN_ROULETTE: 1,
 				FEATURE_DOF: 1,
 				FEATURE_BACKGROUND_MAP: 0,
 				FEATURE_FOG: 1,
+
 				// 0 = PCG
 				// 1 = Sobol
 				// 2 = Stratified List
 				RANDOM_TYPE: 2,
+
 				// 0 = Perspective
 				// 1 = Orthographic
 				// 2 = Equirectangular
 				CAMERA_TYPE: 0,
+
 				DEBUG_MODE: 0,
+
 				ATTR_NORMAL: 0,
 				ATTR_TANGENT: 1,
 				ATTR_UV: 2,
@@ -85,13 +92,11 @@ export class PhysicalPathTracingMaterial extends MaterialBase {
 
 				// light uniforms
 				lights: { value: new LightsInfoUniformStruct() },
-				iesProfiles: {
-					value: new RenderTarget2DArray(360, 180, {
-						type: HalfFloatType,
-						wrapS: ClampToEdgeWrapping,
-						wrapT: ClampToEdgeWrapping,
-					}).texture
-				},
+				iesProfiles: { value: new RenderTarget2DArray( 360, 180, {
+					type: HalfFloatType,
+					wrapS: ClampToEdgeWrapping,
+					wrapT: ClampToEdgeWrapping,
+				} ).texture },
 				environmentIntensity: { value: 1.0 },
 				environmentRotation: { value: new Matrix4() },
 				envMapInfo: { value: new EquirectHdrInfoUniform() },
@@ -107,7 +112,7 @@ export class PhysicalPathTracingMaterial extends MaterialBase {
 				seed: { value: 0 },
 				sobolTexture: { value: null },
 				stratifiedTexture: { value: new StratifiedSamplesTexture() },
-				stratifiedOffsetTexture: { value: new BlueNoiseTexture(64, 1) },
+				stratifiedOffsetTexture: { value: new BlueNoiseTexture( 64, 1 ) },
 			},
 
 			vertexShader: /* glsl */`
@@ -136,27 +141,27 @@ export class PhysicalPathTracingMaterial extends MaterialBase {
 				#include <common>
 
 				// bvh intersection
-				${BVHShaderGLSL.common_functions}
-				${BVHShaderGLSL.bvh_struct_definitions}
-				${BVHShaderGLSL.bvh_ray_functions}
+				${ BVHShaderGLSL.common_functions }
+				${ BVHShaderGLSL.bvh_struct_definitions }
+				${ BVHShaderGLSL.bvh_ray_functions }
 
 				// uniform structs
-				${StructsGLSL.camera_struct}
-				${StructsGLSL.lights_struct}
-				${StructsGLSL.equirect_struct}
-				${StructsGLSL.material_struct}
-				${StructsGLSL.surface_record_struct}
+				${ StructsGLSL.camera_struct }
+				${ StructsGLSL.lights_struct }
+				${ StructsGLSL.equirect_struct }
+				${ StructsGLSL.material_struct }
+				${ StructsGLSL.surface_record_struct }
 
 				// random
 				#if RANDOM_TYPE == 2 	// Stratified List
 
-					${RandomGLSL.stratified_functions}
+					${ RandomGLSL.stratified_functions }
 
 				#elif RANDOM_TYPE == 1 	// Sobol
 
-					${RandomGLSL.pcg_functions}
-					${RandomGLSL.sobol_common}
-					${RandomGLSL.sobol_functions}
+					${ RandomGLSL.pcg_functions }
+					${ RandomGLSL.sobol_common }
+					${ RandomGLSL.sobol_functions }
 
 					#define rand(v) sobol(v)
 					#define rand2(v) sobol2(v)
@@ -165,7 +170,7 @@ export class PhysicalPathTracingMaterial extends MaterialBase {
 
 				#else 					// PCG
 
-				${RandomGLSL.pcg_functions}
+				${ RandomGLSL.pcg_functions }
 
 					// Using the sobol functions seems to break the the compiler on MacOS
 					// - specifically the "sobolReverseBits" function.
@@ -181,11 +186,11 @@ export class PhysicalPathTracingMaterial extends MaterialBase {
 				#endif
 
 				// common
-				${CommonGLSL.texture_sample_functions}
-				${CommonGLSL.fresnel_functions}
-				${CommonGLSL.util_functions}
-				${CommonGLSL.math_functions}
-				${CommonGLSL.shape_intersection_functions}
+				${ CommonGLSL.texture_sample_functions }
+				${ CommonGLSL.fresnel_functions }
+				${ CommonGLSL.util_functions }
+				${ CommonGLSL.math_functions }
+				${ CommonGLSL.shape_intersection_functions }
 
 				// environment
 				uniform EquirectHdrInfo envMapInfo;
@@ -241,16 +246,16 @@ export class PhysicalPathTracingMaterial extends MaterialBase {
 				float lightsDenom;
 
 				// sampling
-				${SamplingGLSL.shape_sampling_functions}
-				${SamplingGLSL.equirect_functions}
-				${SamplingGLSL.light_sampling_functions}
+				${ SamplingGLSL.shape_sampling_functions }
+				${ SamplingGLSL.equirect_functions }
+				${ SamplingGLSL.light_sampling_functions }
 
-				${PTBVHGLSL.inside_fog_volume_function}
-				${BSDFGLSL.ggx_functions}
-				${BSDFGLSL.sheen_functions}
-				${BSDFGLSL.iridescence_functions}
-				${BSDFGLSL.fog_functions}
-				${BSDFGLSL.bsdf_functions}
+				${ PTBVHGLSL.inside_fog_volume_function }
+				${ BSDFGLSL.ggx_functions }
+				${ BSDFGLSL.sheen_functions }
+				${ BSDFGLSL.iridescence_functions }
+				${ BSDFGLSL.fog_functions }
+				${ BSDFGLSL.bsdf_functions }
 
 				float applyFilteredGlossy( float roughness, float accumulatedRoughness ) {
 
@@ -282,12 +287,12 @@ export class PhysicalPathTracingMaterial extends MaterialBase {
 
 				}
 
-				${RenderGLSL.render_structs}
-				${RenderGLSL.camera_util_functions}
-				${RenderGLSL.trace_scene_function}
-				${RenderGLSL.attenuate_hit_function}
-				${RenderGLSL.direct_light_contribution_function}
-				${RenderGLSL.get_surface_record_function}
+				${ RenderGLSL.render_structs }
+				${ RenderGLSL.camera_util_functions }
+				${ RenderGLSL.trace_scene_function }
+				${ RenderGLSL.attenuate_hit_function }
+				${ RenderGLSL.direct_light_contribution_function }
+				${ RenderGLSL.get_surface_record_function }
 
 				void main() {
 
@@ -581,9 +586,9 @@ export class PhysicalPathTracingMaterial extends MaterialBase {
 
 			`
 
-		});
+		} );
 
-		this.setValues(parameters);
+		this.setValues( parameters );
 
 	}
 
