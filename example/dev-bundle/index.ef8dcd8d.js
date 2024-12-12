@@ -481,8 +481,6 @@ async function updateModel() {
         loader.setCredits('Failed to load model:' + err.message);
         loader.setPercentage(1);
     }
-    // update after model load
-    // TODO: clean up
     if (modelInfo.removeEmission) model.traverse((c)=>{
         if (c.material) {
             c.material.emissiveMap = null;
@@ -525,7 +523,6 @@ async function updateModel() {
     if (params.checkerboardTransparency) document.body.classList.add('checkerboard');
 }
 async function loadModel(url, onProgress) {
-    // TODO: clean up
     const manager = new (0, _three.LoadingManager)();
     if (/dae$/i.test(url)) {
         const complete = new Promise((resolve)=>manager.onLoad = resolve);

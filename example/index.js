@@ -67,7 +67,6 @@ const envMaps = {
 	'Blocky Photo Studio': 'https://raw.githubusercontent.com/gkjohnson/3d-demo-data/master/hdri/blocky_photo_studio_1k.hdr',
 	'Christmas Photo Studio 07': 'https://raw.githubusercontent.com/gkjohnson/3d-demo-data/master/hdri/christmas_photo_studio_07_2k.hdr',
 	'Aerodynamics Workshop': 'https://raw.githubusercontent.com/gkjohnson/3d-demo-data/master/hdri/aerodynamics_workshop_1k.hdr',
-
 };
 
 const models = window.MODEL_LIST || {};
@@ -554,8 +553,6 @@ async function updateModel() {
 
 	}
 
-	// update after model load
-	// TODO: clean up
 	if ( modelInfo.removeEmission ) {
 
 		model.traverse( c => {
@@ -646,44 +643,28 @@ async function updateModel() {
 }
 
 async function loadModel( url, onProgress ) {
-
-	// TODO: clean up
 	const manager = new LoadingManager();
 	if ( /dae$/i.test( url ) ) {
-
 		const complete = new Promise( resolve => manager.onLoad = resolve );
 		const res = await new ColladaLoader( manager ).loadAsync( url, progress => {
-
 			if ( progress.total !== 0 && progress.total >= progress.loaded ) {
-
 				onProgress( progress.loaded / progress.total );
-
 			}
-
 		} );
 		await complete;
-
 		res.scene.scale.setScalar( 1 );
 		res.scene.traverse( c => {
-
 			const { material } = c;
 			if ( material && material.isMeshPhongMaterial ) {
-
 				c.material = new MeshStandardMaterial( {
-
 					color: material.color,
 					roughness: material.roughness || 0,
 					metalness: material.metalness || 0,
 					map: material.map || null,
-
 				} );
-
 			}
-
 		} );
-
 		return res.scene;
-
 	} else if ( /(gltf|glb)$/i.test( url ) ) {
 
 		const complete = new Promise( resolve => manager.onLoad = resolve );

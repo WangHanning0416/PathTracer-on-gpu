@@ -5243,8 +5243,6 @@ class MeshDiff {
 }
 
 },{"three":"ktPTu","../../utils/bufferToHash.js":"8v9Fx","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"8v9Fx":[function(require,module,exports,__globalThis) {
-// https://www.geeksforgeeks.org/how-to-create-hash-from-string-in-javascript/
-// https://stackoverflow.com/questions/7616461/generate-a-hash-from-string-in-javascript
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "bufferToHash", ()=>bufferToHash);
